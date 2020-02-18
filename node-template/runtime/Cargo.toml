@@ -3,59 +3,68 @@ name = "node-template-runtime"
 version = "2.0.0"
 authors = ["Anonymous"]
 edition = "2018"
+license = "Unlicense"
 
 [dependencies]
-serde = { version = "1.0.101", optional = true, features = ["derive"] }
-safe-mix = { version = "1.0.0", default-features = false }
 codec = { package = "parity-scale-codec", version = "1.0.0", default-features = false, features = ["derive"] }
-rstd = { package = "sr-std", git = "https://github.com/paritytech/substrate", default_features = false }
-runtime-io = { package = "sr-io", git = "https://github.com/paritytech/substrate", default_features = false }
-version = { package = "sr-version", git = "https://github.com/paritytech/substrate", default_features = false }
-support = { package = "srml-support", git = "https://github.com/paritytech/substrate", default_features = false }
-primitives = { package = "substrate-primitives", git = "https://github.com/paritytech/substrate", default_features = false }
-substrate-session = { git = "https://github.com/paritytech/substrate", default-features = false }
-balances = { package = "srml-balances", git = "https://github.com/paritytech/substrate", default_features = false }
-aura = { package = "srml-aura", git = "https://github.com/paritytech/substrate", default_features = false }
-aura-primitives = { package = "substrate-consensus-aura-primitives", git = "https://github.com/paritytech/substrate", default_features = false }
-grandpa = { package = "srml-grandpa", git = "https://github.com/paritytech/substrate", default_features = false }
-executive = { package = "srml-executive", git = "https://github.com/paritytech/substrate", default_features = false }
-indices = { package = "srml-indices", git = "https://github.com/paritytech/substrate", default_features = false }
-randomness-collective-flip = { package = "srml-randomness-collective-flip", git = "https://github.com/paritytech/substrate", default_features = false }
-system = { package = "srml-system", git = "https://github.com/paritytech/substrate", default_features = false }
-timestamp = { package = "srml-timestamp", git = "https://github.com/paritytech/substrate", default_features = false }
-sudo = { package = "srml-sudo", git = "https://github.com/paritytech/substrate", default_features = false }
-transaction-payment = { package = "srml-transaction-payment", git = "https://github.com/paritytech/substrate", default_features = false }
-sr-primitives = { git = "https://github.com/paritytech/substrate", default_features = false }
-client = { package = "substrate-client", git = "https://github.com/paritytech/substrate", default_features = false }
-offchain-primitives = { package = "substrate-offchain-primitives", git = "https://github.com/paritytech/substrate", default-features = false }
+
+aura = { version = "2.0.0", default-features = false, package = "pallet-aura", path = "../vendor/substrate/frame/aura" }
+balances = { version = "2.0.0", default-features = false, package = "pallet-balances", path = "../vendor/substrate/frame/balances" }
+frame-support = { version = "2.0.0", default-features = false, path = "../vendor/substrate/frame/support" }
+grandpa = { version = "2.0.0", default-features = false, package = "pallet-grandpa", path = "../vendor/substrate/frame/grandpa" }
+indices = { version = "2.0.0", default-features = false, package = "pallet-indices", path = "../vendor/substrate/frame/indices" }
+randomness-collective-flip = { version = "2.0.0", default-features = false, package = "pallet-randomness-collective-flip", path = "../vendor/substrate/frame/randomness-collective-flip" }
+sudo = { version = "2.0.0", default-features = false, package = "pallet-sudo", path = "../vendor/substrate/frame/sudo" }
+system = { version = "2.0.0", default-features = false, package = "frame-system", path = "../vendor/substrate/frame/system" }
+timestamp = { version = "2.0.0", default-features = false, package = "pallet-timestamp", path = "../vendor/substrate/frame/timestamp" }
+transaction-payment = { version = "2.0.0", default-features = false, package = "pallet-transaction-payment", path = "../vendor/substrate/frame/transaction-payment" }
+frame-executive = { version = "2.0.0", default-features = false, path = "../vendor/substrate/frame/executive" }
+serde = { version = "1.0.101", optional = true, features = ["derive"] }
+sp-api = { version = "2.0.0", default-features = false, path = "../vendor/substrate/primitives/api" }
+sp-block-builder = { path = "../vendor/substrate/primitives/block-builder", default-features = false}
+sp-consensus-aura = { version = "0.8", default-features = false, path = "../vendor/substrate/primitives/consensus/aura" }
+sp-core = { version = "2.0.0", default-features = false, path = "../vendor/substrate/primitives/core" }
+sp-inherents = { path = "../vendor/substrate/primitives/inherents", default-features = false}
+sp-io = { version = "2.0.0", default-features = false, path = "../vendor/substrate/primitives/io" }
+sp-offchain = { version = "2.0.0", default-features = false, path = "../vendor/substrate/primitives/offchain" }
+sp-runtime = { version = "2.0.0", default-features = false, path = "../vendor/substrate/primitives/runtime" }
+sp-session = { version = "2.0.0", default-features = false, path = "../vendor/substrate/primitives/session" }
+sp-std = { version = "2.0.0", default-features = false, path = "../vendor/substrate/primitives/std" }
+sp-transaction-pool = { version = "2.0.0", default-features = false, path = "../vendor/substrate/primitives/transaction-pool" }
+sp-version = { version = "2.0.0", default-features = false, path = "../vendor/substrate/primitives/version" }
+
+template = { version = "2.0.0", default-features = false, path = "../pallets/template", package = "pallet-template" }
 
 [build-dependencies]
-wasm-builder-runner = { package = "substrate-wasm-builder-runner", version = "1.0.4" }
+wasm-builder-runner = { version = "1.0.4", package = "substrate-wasm-builder-runner", path = "../vendor/substrate/utils/wasm-builder-runner" }
 
 [features]
 default = ["std"]
 std = [
-	"codec/std",
-	"client/std",
-	"rstd/std",
-	"runtime-io/std",
-	"support/std",
-	"balances/std",
 	"aura/std",
-	"aura-primitives/std",
+	"balances/std",
+	"codec/std",
+	"frame-executive/std",
+	"frame-support/std",
 	"grandpa/std",
-	"executive/std",
 	"indices/std",
-	"primitives/std",
-	"sr-primitives/std",
 	"randomness-collective-flip/std",
+	"serde",
+	"sp-api/std",
+	"sp-block-builder/std",
+	"sp-consensus-aura/std",
+	"sp-core/std",
+	"sp-inherents/std",
+	"sp-io/std",
+	"sp-offchain/std",
+	"sp-runtime/std",
+	"sp-session/std",
+	"sp-std/std",
+	"sp-transaction-pool/std",
+	"sp-version/std",
+	"sudo/std",
 	"system/std",
 	"timestamp/std",
-	"sudo/std",
 	"transaction-payment/std",
-	"version/std",
-	"serde",
-	"safe-mix/std",
-	"offchain-primitives/std",
-	"substrate-session/std",
+	"template/std",
 ]

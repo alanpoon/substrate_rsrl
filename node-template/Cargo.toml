@@ -1,46 +1,7 @@
-[package]
-name = "node-template"
-version = "2.0.0"
-authors = ["Anonymous"]
-build = "build.rs"
-edition = "2018"
-
-[[bin]]
-name = "node-template"
-path = "src/main.rs"
-
-[dependencies]
-derive_more = "0.15.0"
-futures = "0.1.29"
-ctrlc = { version = "3.1.3", features = ["termination"] }
-log = "0.4.8"
-tokio = "0.1.22"
-exit-future = "0.1.4"
-parking_lot = "0.9.0"
-codec = { package = "parity-scale-codec", version = "1.0.0" }
-trie-root = "0.15.2"
-sr-io = { git = "https://github.com/paritytech/substrate" }
-substrate-cli = { git = "https://github.com/paritytech/substrate" }
-primitives = { package = "substrate-primitives", git = "https://github.com/paritytech/substrate" }
-substrate-executor = { git = "https://github.com/paritytech/substrate" }
-substrate-service = { git = "https://github.com/paritytech/substrate" }
-inherents = { package = "substrate-inherents", git = "https://github.com/paritytech/substrate" }
-transaction-pool = { package = "substrate-transaction-pool", git = "https://github.com/paritytech/substrate" }
-network = { package = "substrate-network", git = "https://github.com/paritytech/substrate" }
-aura = { package = "substrate-consensus-aura", git = "https://github.com/paritytech/substrate" }
-aura-primitives = { package = "substrate-consensus-aura-primitives", git = "https://github.com/paritytech/substrate" }
-grandpa = { package = "substrate-finality-grandpa", git = "https://github.com/paritytech/substrate" }
-grandpa-primitives = { package = "substrate-finality-grandpa-primitives", git = "https://github.com/paritytech/substrate" }
-substrate-client = { git = "https://github.com/paritytech/substrate" }
-basic-authorship = { package = "substrate-basic-authorship", git = "https://github.com/paritytech/substrate" }
-runtime = { package = "node-template-runtime", path = "runtime" }
-sr-primitives = { git = "https://github.com/paritytech/substrate" }
-consensus-pow = { package = "substrate-consensus-pow", git = "https://github.com/paritytech/substrate" }
-consensus-pow-primitives = { package = "substrate-consensus-pow-primitives", git = "https://github.com/paritytech/substrate" }
-sha3 = "0.8"
-rand = { version = "0.7", features = ["small_rng"] }
-primitive-types = "0.6"
-
-[build-dependencies]
-vergen = "3.0.4"
-build-script-utils = { package = "substrate-build-script-utils", git = "https://github.com/paritytech/substrate" }
+[workspace]
+members = [
+	"runtime",
+	"node",
+	"pallets/template"
+]
+exclude = ["vendor"]
