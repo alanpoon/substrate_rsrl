@@ -13,7 +13,23 @@ use sha3::{Sha3_256, Digest};
 use rand::{thread_rng, SeedableRng, rngs::SmallRng};
 use std::time::Duration;
 use std::sync::Arc;
-
+use std::cell::RefCell;
+use rsrl::{
+	control::{ac::A2C, td::SARSA},
+	domains::{Domain, MountainCar},
+	fa::linear::{
+			basis::{Fourier, Projector},
+			optim::SGD,
+			LFA,VectorFunction
+	},
+	logging,
+	make_shared,
+	policies::Gibbs,
+	run,
+	spaces::{Card,Space},
+	Evaluation,
+	SerialExperiment,
+};
 pub type Difficulty = U256;
 
 fn is_valid_hash(hash: &H256, difficulty: Difficulty) -> bool {
@@ -43,21 +59,62 @@ pub struct Compute {
 	pub difficulty: Difficulty,
 	pub nonce: H256,
 }
+thread_local!(static MACHINES: RefCell<Option<H256>> = RefCell::new(None));
 
 impl Compute {
 	pub fn compute(self) -> Seal {
-		let calculation = Calculation {
-			difficulty: self.difficulty,
-			pre_hash: self.pre_hash,
-			nonce: self.nonce,
-		};
-		let work = H256::from_slice(Sha3_256::digest(&calculation.encode()[..]).as_slice());
+		println!("start compute");
+		MACHINES.with(|m|{
+			let domain = MountainCar::default();
 
-		Seal {
-			nonce: self.nonce,
-			difficulty: self.difficulty,
-			work: H256::from(work),
-		}
+			let n_actions:usize = domain.action_space().card().into();
+			let bases = Fourier::from_space(3, domain.state_space()).with_constant();
+
+			let policy = make_shared({
+					let fa = LFA::vector(bases.clone(), SGD(1.0), n_actions);
+
+					Gibbs::standard(fa)
+			});
+			let critic = {
+					let q_func = LFA::vector(bases, SGD(1.0), n_actions);
+
+					SARSA::new(q_func, policy.clone(), 0.001, 1.0)
+			};
+
+			let mut agent = A2C::new(critic, policy, 0.001);
+
+			let logger = logging::root(logging::stdout());
+			let domain_builder = Box::new(MountainCar::default);
+			
+			// Training phase:
+			let _training_result = {
+					// Start a serial learning experiment up to 1000 steps per episode.
+					let e = SerialExperiment::new(&mut agent, domain_builder.clone(), 1000);
+
+					// Realise 1000 episodes of the experiment generator.
+					run(e, 10, Some(logger.clone()))
+			};
+			let policy = agent.policy();
+			println!("fa {:?}",policy.fa());
+			// Testing phase:
+			let testing_result = Evaluation::new(&mut agent, domain_builder).next().unwrap();
+			info!(logger, "solution"; testing_result.clone());
+			println!("res {:?}",testing_result);
+			
+			let calculation = Calculation {
+				difficulty: self.difficulty,
+				pre_hash: self.pre_hash,
+				nonce: self.nonce,
+			};
+			let work = H256::from_slice(Sha3_256::digest(&calculation.encode()[..]).as_slice());
+
+			Seal {
+				nonce: self.nonce,
+				difficulty: self.difficulty,
+				work: H256::from(work)
+			}
+		})
+		
 	}
 }
 #[derive(Clone)]

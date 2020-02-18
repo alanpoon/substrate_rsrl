@@ -38,6 +38,10 @@ node-template-runtime = { version = "2.0.0", path = "../runtime" }
 sha3 = { version = "0.8", default-features = false }
 rand = { version = "0.7", features = ["small_rng"] }
 codec = { package = "parity-scale-codec", version = "1.0.0" }
+rsrl = {path = "../vendor/rsrl/rsrl"}
+blas-src = { version = "0.3", default-features = false, features = ["openblas"] }
+openblas-src = { version = "0.6", default-features = false, features = ["cblas", "system"] }
+slog = "2.5"
 
 [build-dependencies]
 vergen = "3.0.4"

@@ -8,6 +8,8 @@ mod cli;
 mod command;
 mod pow;
 pub use sc_cli::{VersionInfo, error};
+#[macro_use]
+extern crate slog;
 
 fn main() -> Result<(), error::Error> {
 	let version = VersionInfo {
