@@ -6,12 +6,12 @@ use sc_client::LongestChain;
 use node_template_runtime::{self, GenesisConfig, opaque::Block, RuntimeApi};
 use sc_service::{error::{Error as ServiceError}, AbstractService, Configuration, ServiceBuilder};
 use sp_inherents::InherentDataProviders;
-use sc_network::{construct_simple_protocol};
+use sc_network::{construct_simple_protocol,config::DummyFinalityProofRequestBuilder};
 use sc_executor::native_executor_instance;
 pub use sc_executor::NativeExecutor;
 use sp_consensus_aura::sr25519::{AuthorityPair as AuraPair};
 use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
-
+use crate::pow::{Sha3Algorithm};
 // Our native executor instance.
 native_executor_instance!(
 	pub Executor,
@@ -44,34 +44,31 @@ macro_rules! new_full_start {
 				Ok(sc_transaction_pool::BasicPool::new(config, std::sync::Arc::new(pool_api)))
 			})?
 			.with_import_queue(|_config, client, mut select_chain, transaction_pool| {
+				let algorithm = crate::pow::Sha3Algorithm;
 				let select_chain = select_chain.take()
 					.ok_or_else(|| sc_service::Error::SelectChainRequired)?;
-
 				let (grandpa_block_import, grandpa_link) =
 					grandpa::block_import::<_, _, _, node_template_runtime::RuntimeApi, _>(
-						client.clone(), &*client, select_chain
+						client.clone(), &*client, select_chain.clone()
 					)?;
-
-				let aura_block_import = sc_consensus_aura::AuraBlockImport::<_, _, _, AuraPair>::new(
-					grandpa_block_import.clone(), client.clone(),
-				);
-
-				let import_queue = sc_consensus_aura::import_queue::<_, _, _, AuraPair, _>(
-					sc_consensus_aura::SlotDuration::get_or_compute(&*client)?,
-					aura_block_import,
-					Some(Box::new(grandpa_block_import.clone())),
-					None,
-					client,
+				let block_import = sc_consensus_pow::PowBlockImport::new(
+					grandpa_block_import.clone(),
+					client.clone(),
+					algorithm.clone(),
+					0,
+					Some(select_chain),
 					inherent_data_providers.clone(),
-					Some(transaction_pool),
+				);
+				let import_queue = sc_consensus_pow::import_queue(
+					Box::new(block_import.clone()),
+					algorithm,
+					inherent_data_providers.clone(),
 				)?;
-
-				import_setup = Some((grandpa_block_import, grandpa_link));
-
+				import_setup = Some(block_import);
 				Ok(import_queue)
 			})?;
 
-		(builder, import_setup, inherent_data_providers)
+		(builder, import_setup,inherent_data_providers)
 	}}
 }
 
@@ -80,7 +77,6 @@ pub fn new_full(config: Configuration<GenesisConfig>)
 	-> Result<impl AbstractService, ServiceError>
 {
 	let is_authority = config.roles.is_authority();
-	let force_authoring = config.force_authoring;
 	let name = config.name.clone();
 	let disable_grandpa = config.disable_grandpa;
 
@@ -88,10 +84,10 @@ pub fn new_full(config: Configuration<GenesisConfig>)
 	// and should run the same protocols authorities do, but it should
 	// never actively participate in any consensus process.
 	let participates_in_consensus = is_authority && !config.sentry_mode;
-
+	println!("before full start");
 	let (builder, mut import_setup, inherent_data_providers) = new_full_start!(config);
-
-	let (block_import, grandpa_link) =
+	println!("after full start");
+	let block_import =
 		import_setup.take()
 			.expect("Link Half and Block Import are present for Full Services or setup failed before. qed");
 
@@ -108,28 +104,21 @@ pub fn new_full(config: Configuration<GenesisConfig>)
 		};
 
 		let client = service.client();
-		let select_chain = service.select_chain()
-			.ok_or(ServiceError::SelectChainRequired)?;
+		let round = 500;
+		sc_consensus_pow::start_mine(
+				Box::new(service.client().clone()),
+				service.client(),
+				Sha3Algorithm,
+				proposer,
+				None,
+				round,
+				service.network(),
+				std::time::Duration::new(2, 0),
+				service.select_chain().map(|v| v.clone()),
+				inherent_data_providers.clone(),
+				sp_consensus::AlwaysCanAuthor,
+			);
 
-		let can_author_with =
-			sp_consensus::CanAuthorWithNativeVersion::new(client.executor().clone());
-
-		let aura = sc_consensus_aura::start_aura::<_, _, _, _, _, AuraPair, _, _, _>(
-			sc_consensus_aura::SlotDuration::get_or_compute(&*client)?,
-			client,
-			select_chain,
-			block_import,
-			proposer,
-			service.network(),
-			inherent_data_providers.clone(),
-			force_authoring,
-			service.keystore(),
-			can_author_with,
-		)?;
-
-		// the AURA authoring task is considered essential, i.e. if it
-		// fails we take down the service with it.
-		service.spawn_essential_task("aura", aura);
 	}
 
 	// if the node isn't actively participating in consensus then it doesn't
@@ -139,52 +128,6 @@ pub fn new_full(config: Configuration<GenesisConfig>)
 	} else {
 		None
 	};
-
-	let grandpa_config = grandpa::Config {
-		// FIXME #1578 make this available through chainspec
-		gossip_duration: Duration::from_millis(333),
-		justification_period: 512,
-		name: Some(name),
-		observer_enabled: true,
-		keystore,
-		is_authority,
-	};
-
-	match (is_authority, disable_grandpa) {
-		(false, false) => {
-			// start the lightweight GRANDPA observer
-			service.spawn_task("grandpa-observer", grandpa::run_grandpa_observer(
-				grandpa_config,
-				grandpa_link,
-				service.network(),
-				service.on_exit(),
-			)?);
-		},
-		(true, false) => {
-			// start the full GRANDPA voter
-			let voter_config = grandpa::GrandpaParams {
-				config: grandpa_config,
-				link: grandpa_link,
-				network: service.network(),
-				inherent_data_providers: inherent_data_providers.clone(),
-				on_exit: service.on_exit(),
-				telemetry_on_connect: Some(service.telemetry_on_connect_stream()),
-				voting_rule: grandpa::VotingRulesBuilder::default().build(),
-			};
-
-			// the GRANDPA voter task is considered infallible, i.e.
-			// if it fails we take down the service with it.
-			service.spawn_essential_task("grandpa", grandpa::run_grandpa_voter(voter_config)?);
-		},
-		(_, true) => {
-			grandpa::setup_disabled_grandpa(
-				service.client(),
-				&inherent_data_providers,
-				service.network(),
-			)?;
-		},
-	}
-
 	Ok(service)
 }
 
@@ -208,28 +151,27 @@ pub fn new_light(config: Configuration<GenesisConfig>)
 			);
 			Ok(pool)
 		})?
-		.with_import_queue_and_fprb(|_config, client, backend, fetcher, _select_chain, _tx_pool| {
-			let fetch_checker = fetcher
-				.map(|fetcher| fetcher.checker().clone())
-				.ok_or_else(|| "Trying to start light import queue without active fetch checker")?;
-			let grandpa_block_import = grandpa::light_block_import::<_, _, _, RuntimeApi>(
-				client.clone(), backend, &*client.clone(), Arc::new(fetch_checker),
-			)?;
-			let finality_proof_import = grandpa_block_import.clone();
-			let finality_proof_request_builder =
-				finality_proof_import.create_finality_proof_request_builder();
+		.with_import_queue_and_fprb(|_config, client, backend, fetcher, select_chain, _tx_pool| {
+			
+			let fprb = Box::new(DummyFinalityProofRequestBuilder::default()) as Box<_>;
 
-			let import_queue = sc_consensus_aura::import_queue::<_, _, _, AuraPair, ()>(
-				sc_consensus_aura::SlotDuration::get_or_compute(&*client)?,
-				grandpa_block_import,
-				None,
-				Some(Box::new(finality_proof_import)),
-				client,
+			let algorithm = crate::pow::Sha3Algorithm;
+
+			let block_import = sc_consensus_pow::PowBlockImport::new(
+				client.clone(),
+				client.clone(),
+				algorithm.clone(),
+				0,
+				select_chain,
 				inherent_data_providers.clone(),
-				None,
+			);
+			let import_queue = sc_consensus_pow::import_queue(
+				Box::new(block_import),
+				Sha3Algorithm,
+				inherent_data_providers.clone(),
 			)?;
 
-			Ok((import_queue, finality_proof_request_builder))
+			Ok((import_queue, fprb))
 		})?
 		.with_network_protocol(|_| Ok(NodeProtocol::new()))?
 		.with_finality_proof_provider(|client, backend|

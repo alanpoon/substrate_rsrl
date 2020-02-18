@@ -75,3 +75,4 @@ cargo run -- \
 
 Additional CLI usage options are available and may be shown by running `cargo run -- --help`.
 cargo run -- --dev --validator
+cargo run -- purge-chain --dev -y

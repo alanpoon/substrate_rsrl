@@ -6,7 +6,7 @@ mod chain_spec;
 mod service;
 mod cli;
 mod command;
-
+mod pow;
 pub use sc_cli::{VersionInfo, error};
 
 fn main() -> Result<(), error::Error> {

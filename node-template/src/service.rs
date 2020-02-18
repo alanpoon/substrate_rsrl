@@ -73,9 +73,9 @@ pub fn new_full<C: Send + Default + 'static>(config: Configuration<C, GenesisCon
 	// and should run the same protocols authorities do, but it should
 	// never actively participate in any consensus process.
 	let participates_in_consensus = is_authority && !config.sentry_mode;
-
+	println!("z");
 	let (builder, inherent_data_providers) = new_full_start!(config);
-
+	println!("zn");
 	let service = builder.with_network_protocol(|_| Ok(NodeProtocol::new()))?
 		.with_finality_proof_provider(|_client, _backend| {
 			Ok(Arc::new(()) as _)
@@ -88,7 +88,7 @@ pub fn new_full<C: Send + Default + 'static>(config: Configuration<C, GenesisCon
 			transaction_pool: service.transaction_pool(),
 		};
 		let round = 500;
-
+		println!("start_mine");
 		consensus_pow::start_mine(
 			Box::new(service.client().clone()),
 			service.client(),
@@ -105,7 +105,7 @@ pub fn new_full<C: Send + Default + 'static>(config: Configuration<C, GenesisCon
 
 	Ok(service)
 }
-
+/*
 /// Builds a new service for a light client.
 pub fn new_light<C: Send + Default + 'static>(config: Configuration<C, GenesisConfig>)
 	-> Result<impl AbstractService, ServiceError>
@@ -138,3 +138,4 @@ pub fn new_light<C: Send + Default + 'static>(config: Configuration<C, GenesisCo
 		})?
 		.build()
 }
+*/

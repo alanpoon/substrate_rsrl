@@ -2586,17 +2586,24 @@ dependencies = [
  "futures 0.3.4",
  "log",
  "node-template-runtime",
+ "parity-scale-codec",
+ "rand 0.7.3",
  "sc-basic-authorship",
  "sc-cli",
  "sc-client",
+ "sc-client-api",
  "sc-consensus-aura",
+ "sc-consensus-pow",
  "sc-executor",
  "sc-finality-grandpa",
  "sc-network",
  "sc-service",
  "sc-transaction-pool",
+ "sha3",
+ "sp-api",
  "sp-consensus",
  "sp-consensus-aura",
+ "sp-consensus-pow",
  "sp-core",
  "sp-finality-grandpa",
  "sp-inherents",
@@ -3419,7 +3426,7 @@ dependencies = [
  "rand_isaac",
  "rand_jitter",
  "rand_os",
- "rand_pcg",
+ "rand_pcg 0.1.2",
  "rand_xorshift",
  "winapi 0.3.8",
 ]
@@ -3435,6 +3442,7 @@ dependencies = [
  "rand_chacha 0.2.1",
  "rand_core 0.5.1",
  "rand_hc 0.2.0",
+ "rand_pcg 0.2.1",
 ]
 
 [[package]]
@@ -3541,6 +3549,15 @@ checksum = "abf9b09b01790cfe0364f52bf32995ea3c39f4d2dd011eac241d2914146d0b44"
 dependencies = [
  "autocfg 0.1.7",
  "rand_core 0.4.2",
+]
+
+[[package]]
+name = "rand_pcg"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "16abd0c1b639e9eb4d7c50c0b8100b0d0f849be2349829c740fe8e6eb4816429"
+dependencies = [
+ "rand_core 0.5.1",
 ]
 
 [[package]]
@@ -3956,6 +3973,26 @@ dependencies = [
  "sp-runtime",
  "sp-timestamp",
  "sp-version",
+]
+
+[[package]]
+name = "sc-consensus-pow"
+version = "0.8.0"
+dependencies = [
+ "derive_more",
+ "futures 0.3.4",
+ "log",
+ "parity-scale-codec",
+ "sc-client-api",
+ "sp-api",
+ "sp-block-builder",
+ "sp-blockchain",
+ "sp-consensus",
+ "sp-consensus-pow",
+ "sp-core",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-timestamp",
 ]
 
 [[package]]
@@ -4797,6 +4834,17 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "sp-timestamp",
+]
+
+[[package]]
+name = "sp-consensus-pow"
+version = "0.8.0"
+dependencies = [
+ "parity-scale-codec",
+ "sp-api",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
