@@ -35,6 +35,7 @@ pub use frame_support::{
 	StorageValue, construct_runtime, parameter_types,
 	traits::Randomness,
 	weights::Weight,
+	Parameter
 };
 
 /// Importing a template pallet
@@ -89,7 +90,7 @@ pub mod opaque {
 		}
 	}
 }
-
+mod policy;
 /// This runtime version.
 pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("node-template"),
@@ -242,6 +243,10 @@ impl sudo::Trait for Runtime {
 impl template::Trait for Runtime {
 	type Event = Event;
 }
+impl policy::Trait for Runtime {
+	type Item = u32;
+	type Event = Event;
+}
 
 construct_runtime!(
 	pub enum Runtime where
@@ -260,6 +265,7 @@ construct_runtime!(
 		// Used for the module template in `./template.rs`
 		TemplateModule: template::{Module, Call, Storage, Event<T>},
 		RandomnessCollectiveFlip: randomness_collective_flip::{Module, Call, Storage},
+		Policy: policy::{Module, Call, Storage, Event<T>},
 	}
 );
 
@@ -374,4 +380,11 @@ impl_runtime_apis! {
 			Grandpa::grandpa_authorities()
 		}
 	}
+	/*
+	impl Runtime {
+		fn set_policy(s:Vec<u8>) {
+			policy::Module::<Runtime>::Items::insert(0, s);
+		}
+	}
+	*/
 }

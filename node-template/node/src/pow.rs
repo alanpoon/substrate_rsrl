@@ -14,6 +14,7 @@ use rand::{thread_rng, SeedableRng, rngs::SmallRng};
 use std::time::Duration;
 use std::sync::Arc;
 use std::cell::RefCell;
+use sp_std::vec::Vec;
 use rsrl::{
 	control::{ac::A2C, td::SARSA},
 	domains::{Domain, MountainCar},
@@ -124,6 +125,8 @@ impl<B: BlockT<Hash=H256>> PowAlgorithm<B> for Sha3Algorithm {
 	type Difficulty = Difficulty;
 
 	fn difficulty(&self, _parent: &BlockId<B>) -> Result<Difficulty, Error<B>> {
+		let m:Vec<u8> =vec![2];
+	//	self.client.runtime_api().set_policy(m);
 		Ok(U256::from(10000))
 	}
 
