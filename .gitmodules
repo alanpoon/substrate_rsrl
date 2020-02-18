@@ -1,0 +1,3 @@
+[submodule "node-template/vendor/substrate"]
+	path = node-template/vendor/substrate
+	url = https://github.com/paritytech/substrate
