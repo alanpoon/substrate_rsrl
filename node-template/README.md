@@ -74,5 +74,6 @@ cargo run -- \
 ```
 
 Additional CLI usage options are available and may be shown by running `cargo run -- --help`.
+substrate hash db1ab7d18fbe7876cdea43bbf30f147ddd263f94
 cargo run -- --dev --validator
 cargo run -- purge-chain --dev -y
