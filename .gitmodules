@@ -1,3 +1,6 @@
 [submodule "node-template/vendor/substrate"]
 	path = node-template/vendor/substrate
 	url = https://github.com/paritytech/substrate
+[submodule "node-template/node-template/vendor/rsrl"]
+	path = node-template/node-template/vendor/rsrl
+	url = https://github.com/alanpoon/rsrl.git
