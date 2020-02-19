@@ -380,6 +380,14 @@ impl_runtime_apis! {
 			Grandpa::grandpa_authorities()
 		}
 	}
+	impl policy_primitives::AlgorithmApi<Block> for Runtime {
+		fn set_policy(s:Vec<u8>) {
+			//<policy::Module::<Runtime> as policy::Trait>::Items::insert(0, s);
+			//<policy::Items<T:policy::Trait>>::insert(0,s);
+			//timestamp::Module::<Runtime>::get()
+			policy::Module::<Runtime>::set_policy(s);
+		}
+	}
 	/*
 	impl Runtime {
 		fn set_policy(s:Vec<u8>) {

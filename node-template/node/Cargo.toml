@@ -34,6 +34,7 @@ sc-consensus-aura = { version = "0.8", path = "../vendor/substrate/client/consen
 sc-client-api = { path = "../vendor/substrate/client/api" }
 sp-consensus-aura = { version = "0.8", path = "../vendor/substrate/primitives/consensus/aura" }
 sp-api = { path = "../vendor/substrate/primitives/api" }
+sp-std = { path ="../vendor/substrate/primitives/std"}
 node-template-runtime = { version = "2.0.0", path = "../runtime" }
 sha3 = { version = "0.8", default-features = false }
 rand = { version = "0.7", features = ["small_rng"] }
