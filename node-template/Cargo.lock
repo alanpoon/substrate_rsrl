@@ -2775,6 +2775,7 @@ dependencies = [
  "node-template-runtime",
  "openblas-src",
  "parity-scale-codec",
+ "policy-primitives",
  "rand 0.7.3",
  "rsrl",
  "sc-basic-authorship",

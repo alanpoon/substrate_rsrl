@@ -22,8 +22,8 @@ sp-inherents = { version = "2.0.0", path = "../vendor/substrate/primitives/inher
 sc-transaction-pool = { version = "2.0.0", path = "../vendor/substrate/client/transaction-pool" }
 sp-transaction-pool = { version = "2.0.0", path = "../vendor/substrate/primitives/transaction-pool" }
 sc-network = { version = "0.8", path = "../vendor/substrate/client/network" }
-sc-consensus-pow = { version = "0.8", path = "../vendor/substrate/client/consensus/pow" }
-sp-consensus-pow = { version = "0.8", path = "../vendor/substrate/primitives/consensus/pow" }
+sc-consensus-pow = { version = "0.8", path = "../sc-pow" }
+sp-consensus-pow = { version = "0.8", path = "../sp-pow" }
 sp-consensus = { version = "0.8", path = "../vendor/substrate/primitives/consensus/common" }
 grandpa = { version = "0.8", package = "sc-finality-grandpa", path = "../vendor/substrate/client/finality-grandpa" }
 grandpa-primitives = { version = "2.0.0", package = "sp-finality-grandpa", path = "../vendor/substrate/primitives/finality-grandpa" }
@@ -39,6 +39,7 @@ node-template-runtime = { version = "2.0.0", path = "../runtime" }
 sha3 = { version = "0.8", default-features = false }
 rand = { version = "0.7", features = ["small_rng"] }
 codec = { package = "parity-scale-codec", version = "1.0.0" }
+policy-primitives = {path="../primitives" ,default-features = false}
 rsrl = {path = "../vendor/rsrl/rsrl"}
 blas-src = { version = "0.3", default-features = false, features = ["openblas"] }
 openblas-src = { version = "0.6", default-features = false, features = ["cblas", "system"] }

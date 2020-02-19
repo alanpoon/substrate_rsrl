@@ -37,6 +37,7 @@ use sp_std::vec::Vec;
 sp_api::decl_runtime_apis! {
 	/// The API to query account nonce (aka transaction index).
 	pub trait AlgorithmApi {
+		fn get_policy()->Option<Vec<u8>>;
 		fn set_policy(Vec<u8>);
 	}
 }

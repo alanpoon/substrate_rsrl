@@ -44,7 +44,7 @@ macro_rules! new_full_start {
 				Ok(sc_transaction_pool::BasicPool::new(config, std::sync::Arc::new(pool_api)))
 			})?
 			.with_import_queue(|_config, client, mut select_chain, transaction_pool| {
-				let algorithm = crate::pow::Sha3Algorithm;
+				let algorithm = crate::pow::Sha3Algorithm::new(client.clone());
 				let select_chain = select_chain.take()
 					.ok_or_else(|| sc_service::Error::SelectChainRequired)?;
 				let (grandpa_block_import, grandpa_link) =
@@ -104,11 +104,11 @@ pub fn new_full(config: Configuration<GenesisConfig>)
 		};
 
 		let client = service.client();
-		let round = 500;
+		let round = 1;
 		sc_consensus_pow::start_mine(
 				Box::new(service.client().clone()),
 				service.client(),
-				Sha3Algorithm,
+				Sha3Algorithm::new(client),
 				proposer,
 				None,
 				round,
@@ -155,7 +155,7 @@ pub fn new_light(config: Configuration<GenesisConfig>)
 			
 			let fprb = Box::new(DummyFinalityProofRequestBuilder::default()) as Box<_>;
 
-			let algorithm = crate::pow::Sha3Algorithm;
+			let algorithm = crate::pow::Sha3Algorithm::new(client.clone());
 
 			let block_import = sc_consensus_pow::PowBlockImport::new(
 				client.clone(),
@@ -167,7 +167,7 @@ pub fn new_light(config: Configuration<GenesisConfig>)
 			);
 			let import_queue = sc_consensus_pow::import_queue(
 				Box::new(block_import),
-				Sha3Algorithm,
+				Sha3Algorithm::new(client),
 				inherent_data_providers.clone(),
 			)?;
 

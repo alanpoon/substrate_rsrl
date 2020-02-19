@@ -385,7 +385,12 @@ impl_runtime_apis! {
 			//<policy::Module::<Runtime> as policy::Trait>::Items::insert(0, s);
 			//<policy::Items<T:policy::Trait>>::insert(0,s);
 			//timestamp::Module::<Runtime>::get()
+			//Timestamp::set_timestamp(block * 5000);
+			//pub type Timestamp = pallet_timestamp::Module<Test>;
 			policy::Module::<Runtime>::set_policy(s);
+		}
+		fn get_policy()->Option<Vec<u8>>{
+			policy::Module::<Runtime>::get()
 		}
 	}
 	/*

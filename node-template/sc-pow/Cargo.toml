@@ -1,0 +1,24 @@
+[package]
+name = "sc-consensus-pow"
+version = "0.8.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+description = "PoW consensus algorithm for substrate"
+edition = "2018"
+license = "GPL-3.0"
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "1.0.0", features = ["derive"] }
+sp-core = { version = "2.0.0", path = "../vendor/substrate/primitives/core" }
+sp-blockchain = { version = "2.0.0", path = "../vendor/substrate/primitives/blockchain" }
+sp-runtime = { version = "2.0.0", path = "../vendor/substrate/primitives/runtime" }
+sp-api = { version = "2.0.0", path = "../vendor/substrate/primitives/api" }
+sc-client-api = { version = "2.0.0", path = "../vendor/substrate/client/api" }
+sp-block-builder = { version = "2.0.0", path = "../vendor/substrate/primitives/block-builder" }
+sp-inherents = { version = "2.0.0", path = "../vendor/substrate/primitives/inherents" }
+sp-consensus-pow = { version = "0.8", path = "../sp-pow" }
+sp-consensus = { version = "0.8", path = "../vendor/substrate/primitives/consensus/common" }
+log = "0.4.8"
+futures = { version = "0.3.1", features = ["compat"] }
+sp-timestamp = { version = "2.0.0", path = "../vendor/substrate/primitives/timestamp" }
+derive_more = "0.99.2"
+sp-std = { path ="../vendor/substrate/primitives/std"}

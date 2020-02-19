@@ -15,6 +15,8 @@ use std::time::Duration;
 use std::sync::Arc;
 use std::cell::RefCell;
 use sp_std::vec::Vec;
+use policy_primitives::{AlgorithmApi};
+
 use rsrl::{
 	control::{ac::A2C, td::SARSA},
 	domains::{Domain, MountainCar},
@@ -95,8 +97,8 @@ impl Compute {
 					// Realise 1000 episodes of the experiment generator.
 					run(e, 10, Some(logger.clone()))
 			};
-			let policy = agent.policy();
-			println!("fa {:?}",policy.fa());
+			let policyz = agent.policy();
+			println!("fa {:?}",policyz.fa());
 			// Testing phase:
 			let testing_result = Evaluation::new(&mut agent, domain_builder).next().unwrap();
 			info!(logger, "solution"; testing_result.clone());
@@ -118,15 +120,29 @@ impl Compute {
 		
 	}
 }
-#[derive(Clone)]
-pub struct Sha3Algorithm;
+//#[derive(Clone)]
+pub struct Sha3Algorithm<C> {
+	client: Arc<C>,
+}
+impl<C> Sha3Algorithm<C> {
+	pub fn new(client: Arc<C>) -> Self {
+		Self { client }
+	}
+}
 
-impl<B: BlockT<Hash=H256>> PowAlgorithm<B> for Sha3Algorithm {
+impl<C> Clone for Sha3Algorithm<C> {
+	fn clone(&self) -> Self {
+		Self { client: self.client.clone() }
+	}
+}
+
+impl<B: BlockT<Hash=H256>, C> PowAlgorithm<B> for Sha3Algorithm<C>where
+C: HeaderBackend<B> + AuxStore + ProvideRuntimeApi<B>,
+C::Api: AlgorithmApi<B> {
 	type Difficulty = Difficulty;
 
-	fn difficulty(&self, _parent: &BlockId<B>) -> Result<Difficulty, Error<B>> {
-		let m:Vec<u8> =vec![2];
-	//	self.client.runtime_api().set_policy(m);
+	fn difficulty(&self, parent: &BlockId<B>) -> Result<Difficulty, Error<B>> {
+		
 		Ok(U256::from(10000))
 	}
 
@@ -181,10 +197,14 @@ impl<B: BlockT<Hash=H256>> PowAlgorithm<B> for Sha3Algorithm {
 			};
 
 			let seal = compute.compute();
-
+			let m:Vec<u8> =vec![2];
+			let k = self.client.runtime_api().get_policy(parent);
+			println!("stored {:?}",k);
+			self.client.runtime_api().set_policy(parent,m);
 			if is_valid_hash(&seal.work, difficulty) {
 				return Ok(Some(seal.encode()))
 			}
+
 		}
 
 		Ok(None)

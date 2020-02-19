@@ -3,6 +3,8 @@ members = [
 	"runtime",
 	"node",
 	"pallets/template",
-	"primitives"
+	"primitives",
+	"sc-pow",
+	"sp-pow"
 ]
 exclude = ["vendor"]

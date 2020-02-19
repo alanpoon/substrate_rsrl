@@ -13,7 +13,7 @@ pub struct Item {
 decl_storage! {
 	trait Store for Module<T: Trait> as Policy {
 		//pub Items: map hasher(blake2_256) u32 => Option<Item>;
-		pub Now get(fn now) build(|_| vec![]): Vec<u8>;
+		pub Policy get(fn get_policy): Option<Vec<u8>>;
 	}
 }
 impl<T: Trait> Module<T> {
@@ -21,11 +21,11 @@ impl<T: Trait> Module<T> {
 	///
 	/// NOTE: if this function is called prior to setting the timestamp,
 	/// it will return the timestamp of the previous block.
-	pub fn get() -> Vec<u8> {
-		Self::now()
+	pub fn get() -> Option<Vec<u8>> {
+		Self::get_policy()
 	}
-	pub fn set_policy(now: Vec<u8>) {
-		<Self as Store>::Now::put(now);
+	pub fn set_policy(policy: Vec<u8>) {
+		<Self as Store>::Policy::put(policy);
 	}
 }
 decl_event! {
