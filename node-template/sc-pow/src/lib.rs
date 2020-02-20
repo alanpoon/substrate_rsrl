@@ -42,12 +42,12 @@ use sp_runtime::{Justification, RuntimeString};
 use sp_runtime::generic::{BlockId, Digest, DigestItem};
 use sp_runtime::traits::{Block as BlockT, Header as HeaderT};
 use sp_api::ProvideRuntimeApi;
-use sp_consensus_pow::{Seal, TotalDifficulty, POW_ENGINE_ID};
+use sp_consensus_pow::{Seal, TotalDifficulty, POW_ENGINE_ID,Sealer};
 use sp_inherents::{InherentDataProviders, InherentData};
 use sp_consensus::{
 	BlockImportParams, BlockOrigin, ForkChoiceStrategy, SyncOracle, Environment, Proposer,
 	SelectChain, Error as ConsensusError, CanAuthorWith, RecordProof, BlockImport,
-	BlockCheckParams, ImportResult,
+	BlockCheckParams, ImportResult
 };
 use sp_consensus::import_queue::{BoxBlockImport, BasicQueue, Verifier};
 use codec::{Encode, Decode};
@@ -115,7 +115,7 @@ fn aux_key<T: AsRef<[u8]>>(hash: &T) -> Vec<u8> {
 pub struct PowIntermediate<Difficulty> {
 	/// Difficulty of the block, if known.
 	pub difficulty: Option<Difficulty>,
-	pub policy: Option<Seal>
+	pub policy: Option<Vec<u8>>
 }
 
 /// Intermediate key for PoW engine.
@@ -128,7 +128,7 @@ pub struct PowAux<Difficulty> {
 	pub difficulty: Difficulty,
 	/// Total difficulty up to current block.
 	pub total_difficulty: Difficulty,
-	pub policy: Seal
+	pub policy: Option<Vec<u8>>
 }
 
 impl<Difficulty> PowAux<Difficulty> where
@@ -154,7 +154,7 @@ pub trait PowAlgorithm<B: BlockT> {
 	/// This function will be called twice during the import process, so the implementation
 	/// should be properly cached.
 	fn difficulty(&self, parent: &BlockId<B>) -> Result<Self::Difficulty, Error<B>>;
-	fn policy(&self, parent: &BlockId<B>) -> Result<Seal, Error<B>>;
+	fn policy(&self, parent: &BlockId<B>) -> Result<Option<Vec<u8>>, Error<B>>;
 	/// Verify that the seal is valid against given pre hash when parent block is not yet imported.
 	///
 	/// None means that preliminary verify is not available for this algorithm.
@@ -341,7 +341,7 @@ impl<B, I, C, S, Algorithm> BlockImport<B> for PowBlockImport<B, I, C, S, Algori
 			None => self.algorithm.difficulty(&BlockId::hash(parent_hash))?,
 		};
 		let policy = match intermediate.policy {
-			Some(policy) => policy,
+			Some(policy) => Some(policy),
 			None => self.algorithm.policy(&BlockId::hash(parent_hash))?,
 		};
 		let pre_hash = block.header.hash();
@@ -628,9 +628,6 @@ fn mine_loop<B: BlockT, C, Algorithm, E, SO, S, CAW>(
 			let difficulty = algorithm.difficulty(
 				&BlockId::Hash(best_hash),
 			)?;
-			let policy = algorithm.policy(
-				&BlockId::Hash(best_hash),
-			)?;
 			loop {
 				let seal = algorithm.mine(
 					&BlockId::Hash(best_hash),
@@ -641,7 +638,7 @@ fn mine_loop<B: BlockT, C, Algorithm, E, SO, S, CAW>(
 				
 				if let Some(seal) = seal {
 					let mut c =seal.clone();
-					let d_seal:Seal = Sealer::decode(&mut &c[..]).unwrap();
+					let d_seal:Sealer = Sealer::decode(&mut &c[..]).unwrap();
 					let policy = d_seal.policy;
 					break (difficulty,policy, seal)
 				}

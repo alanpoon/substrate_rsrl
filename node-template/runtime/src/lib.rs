@@ -389,7 +389,7 @@ impl_runtime_apis! {
 			//pub type Timestamp = pallet_timestamp::Module<Test>;
 			policy::Module::<Runtime>::set_policy(s);
 		}
-		fn get_policy()->Option<Vec<u8>>{
+		fn policy()->Option<Vec<u8>>{
 			policy::Module::<Runtime>::get()
 		}
 	}

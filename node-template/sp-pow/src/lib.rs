@@ -20,8 +20,8 @@
 
 use sp_std::vec::Vec;
 use sp_runtime::ConsensusEngineId;
-use codec::Decode;
-
+use codec::{Encode,Decode};
+use sp_core::{U256, H256};
 /// The `ConsensusEngineId` of PoW.
 pub const POW_ENGINE_ID: ConsensusEngineId = [b'p', b'o', b'w', b'_'];
 
@@ -61,4 +61,13 @@ sp_api::decl_runtime_apis! {
 		/// Return the target difficulty of the next block.
 		fn difficulty() -> Difficulty;
 	}
+}
+pub type Difficulty = U256;
+
+#[derive(Clone, PartialEq, Eq, Encode, Decode, Debug)]
+pub struct Sealer {
+	pub difficulty: Difficulty,
+	pub work: H256,
+	pub nonce: H256,
+	pub policy: Vec<u8>
 }

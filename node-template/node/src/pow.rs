@@ -8,7 +8,7 @@ use sc_client::{blockchain::HeaderBackend};
 use sc_client_api::{backend::AuxStore};
 use sp_runtime::codec::{Encode, Decode};
 use sc_consensus_pow::{PowAlgorithm, Error};
-use sp_consensus_pow::Seal as RawSeal;
+use sp_consensus_pow::{Seal as RawSeal,Sealer,Difficulty};
 use sha3::{Sha3_256, Digest};
 use rand::{thread_rng, SeedableRng, rngs::SmallRng};
 use std::time::Duration;
@@ -33,7 +33,7 @@ use rsrl::{
 	Evaluation,
 	SerialExperiment,
 };
-pub type Difficulty = U256;
+
 
 fn is_valid_hash(hash: &H256, difficulty: Difficulty) -> bool {
 	let num_hash = U256::from(&hash[..]);
@@ -42,13 +42,7 @@ fn is_valid_hash(hash: &H256, difficulty: Difficulty) -> bool {
 	!overflowed
 }
 
-#[derive(Clone, PartialEq, Eq, Encode, Decode, Debug)]
-pub struct Seal {
-	pub difficulty: Difficulty,
-	pub work: H256,
-	pub nonce: H256,
-	pub policy: RawSeal
-}
+
 
 #[derive(Clone, PartialEq, Eq, Encode, Decode, Debug)]
 pub struct Calculation {
@@ -67,7 +61,7 @@ pub struct Compute {
 thread_local!(static MACHINES: RefCell<Option<H256>> = RefCell::new(None));
 
 impl Compute {
-	pub fn compute(self) -> Seal {
+	pub fn compute(self) -> Sealer {
 		println!("start compute");
 		MACHINES.with(|m|{
 			let domain = MountainCar::default();
@@ -113,11 +107,11 @@ impl Compute {
 			};
 			let work = H256::from_slice(Sha3_256::digest(&calculation.encode()[..]).as_slice());
 
-			Seal {
+			Sealer {
 				nonce: self.nonce,
 				difficulty: self.difficulty,
 				work: H256::from(work),
-
+				policy: vec![2]
 			}
 		})
 		
@@ -148,9 +142,9 @@ C::Api: AlgorithmApi<B> {
 		
 		Ok(U256::from(10000))
 	}
-	fn policy(&self, parent: &BlockId<B>) -> Result<RawSeal, consensus_pow::Error<B>> {
+	fn policy(&self, parent: &BlockId<B>) -> Result<Option<Vec<u8>>, sc_consensus_pow::Error<B>> {
 		let policy = self.client.runtime_api().policy(parent)
-			.map_err(|e| consensus_pow::Error::Environment(
+			.map_err(|e| sc_consensus_pow::Error::Environment(
 				format!("Fetching policy from runtime failed: {:?}", e)
 			));
 		policy
@@ -163,7 +157,7 @@ C::Api: AlgorithmApi<B> {
 		seal: &RawSeal,
 		difficulty: Difficulty,
 	) -> Result<bool, Error<B>> {
-		let seal = match Seal::decode(&mut &seal[..]) {
+		let seal = match Sealer::decode(&mut &seal[..]) {
 			Ok(seal) => seal,
 			Err(_) => return Ok(false),
 		};
@@ -175,8 +169,7 @@ C::Api: AlgorithmApi<B> {
 		let compute = Compute {
 			difficulty,
 			pre_hash: *pre_hash,
-			nonce: seal.nonce,
-			policy: seal.policy
+			nonce: seal.nonce
 		};
 
 		if compute.compute() != seal {
