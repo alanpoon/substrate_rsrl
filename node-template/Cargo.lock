@@ -4305,6 +4305,7 @@ dependencies = [
  "sp-core",
  "sp-inherents",
  "sp-runtime",
+ "sp-std",
  "sp-timestamp",
 ]
 

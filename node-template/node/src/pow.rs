@@ -47,6 +47,7 @@ pub struct Seal {
 	pub difficulty: Difficulty,
 	pub work: H256,
 	pub nonce: H256,
+	pub policy: RawSeal
 }
 
 #[derive(Clone, PartialEq, Eq, Encode, Decode, Debug)]
@@ -61,6 +62,7 @@ pub struct Compute {
 	pub pre_hash: H256,
 	pub difficulty: Difficulty,
 	pub nonce: H256,
+	
 }
 thread_local!(static MACHINES: RefCell<Option<H256>> = RefCell::new(None));
 
@@ -114,7 +116,8 @@ impl Compute {
 			Seal {
 				nonce: self.nonce,
 				difficulty: self.difficulty,
-				work: H256::from(work)
+				work: H256::from(work),
+
 			}
 		})
 		
@@ -145,6 +148,13 @@ C::Api: AlgorithmApi<B> {
 		
 		Ok(U256::from(10000))
 	}
+	fn policy(&self, parent: &BlockId<B>) -> Result<RawSeal, consensus_pow::Error<B>> {
+		let policy = self.client.runtime_api().policy(parent)
+			.map_err(|e| consensus_pow::Error::Environment(
+				format!("Fetching policy from runtime failed: {:?}", e)
+			));
+		policy
+	}
 
 	fn verify(
 		&self,
@@ -166,6 +176,7 @@ C::Api: AlgorithmApi<B> {
 			difficulty,
 			pre_hash: *pre_hash,
 			nonce: seal.nonce,
+			policy: seal.policy
 		};
 
 		if compute.compute() != seal {
@@ -197,10 +208,11 @@ C::Api: AlgorithmApi<B> {
 			};
 
 			let seal = compute.compute();
-			let m:Vec<u8> =vec![2];
+			/*let m:Vec<u8> =vec![2];
 			let k = self.client.runtime_api().get_policy(parent);
 			println!("stored {:?}",k);
 			self.client.runtime_api().set_policy(parent,m);
+			*/
 			if is_valid_hash(&seal.work, difficulty) {
 				return Ok(Some(seal.encode()))
 			}

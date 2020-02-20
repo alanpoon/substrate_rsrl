@@ -115,6 +115,7 @@ fn aux_key<T: AsRef<[u8]>>(hash: &T) -> Vec<u8> {
 pub struct PowIntermediate<Difficulty> {
 	/// Difficulty of the block, if known.
 	pub difficulty: Option<Difficulty>,
+	pub policy: Option<Seal>
 }
 
 /// Intermediate key for PoW engine.
@@ -127,7 +128,7 @@ pub struct PowAux<Difficulty> {
 	pub difficulty: Difficulty,
 	/// Total difficulty up to current block.
 	pub total_difficulty: Difficulty,
-	pub policy: Vec<u8>
+	pub policy: Seal
 }
 
 impl<Difficulty> PowAux<Difficulty> where
@@ -148,13 +149,12 @@ impl<Difficulty> PowAux<Difficulty> where
 pub trait PowAlgorithm<B: BlockT> {
 	/// Difficulty for the algorithm.
 	type Difficulty: TotalDifficulty + Default + Encode + Decode + Ord + Clone + Copy;
-
 	/// Get the next block's difficulty.
 	///
 	/// This function will be called twice during the import process, so the implementation
 	/// should be properly cached.
 	fn difficulty(&self, parent: &BlockId<B>) -> Result<Self::Difficulty, Error<B>>;
-	fn policy(&self, parent: &BlockId<B>) -> Result<Vec<u8>, Error<B>>;
+	fn policy(&self, parent: &BlockId<B>) -> Result<Seal, Error<B>>;
 	/// Verify that the seal is valid against given pre hash when parent block is not yet imported.
 	///
 	/// None means that preliminary verify is not available for this algorithm.
@@ -340,7 +340,10 @@ impl<B, I, C, S, Algorithm> BlockImport<B> for PowBlockImport<B, I, C, S, Algori
 			Some(difficulty) => difficulty,
 			None => self.algorithm.difficulty(&BlockId::hash(parent_hash))?,
 		};
-	
+		let policy = match intermediate.policy {
+			Some(policy) => policy,
+			None => self.algorithm.policy(&BlockId::hash(parent_hash))?,
+		};
 		let pre_hash = block.header.hash();
 		if !self.algorithm.verify(
 			&BlockId::hash(parent_hash),
@@ -353,6 +356,7 @@ impl<B, I, C, S, Algorithm> BlockImport<B> for PowBlockImport<B, I, C, S, Algori
 
 		aux.difficulty = difficulty;
 		aux.total_difficulty.increment(difficulty);
+		aux.policy = policy;
 
 		let key = aux_key(&block.post_hash());
 		block.auxiliary.push((key, Some(aux.encode())));
@@ -424,6 +428,7 @@ impl<B: BlockT, Algorithm> Verifier<B> for PowVerifier<B, Algorithm> where
 
 		let intermediate = PowIntermediate::<Algorithm::Difficulty> {
 			difficulty: None,
+			policy: None
 		};
 
 		let mut import_block = BlockImportParams::new(origin, checked_header);
@@ -619,11 +624,13 @@ fn mine_loop<B: BlockT, C, Algorithm, E, SO, S, CAW>(
 		)).map_err(|e| Error::BlockProposingError(format!("{:?}", e)))?;
 
 		let (header, body) = proposal.block.deconstruct();
-		let (difficulty, seal) = {
+		let (difficulty, policy, seal) = {
 			let difficulty = algorithm.difficulty(
 				&BlockId::Hash(best_hash),
 			)?;
-
+			let policy = algorithm.policy(
+				&BlockId::Hash(best_hash),
+			)?;
 			loop {
 				let seal = algorithm.mine(
 					&BlockId::Hash(best_hash),
@@ -631,9 +638,12 @@ fn mine_loop<B: BlockT, C, Algorithm, E, SO, S, CAW>(
 					difficulty,
 					round,
 				)?;
-
+				
 				if let Some(seal) = seal {
-					break (difficulty, seal)
+					let mut c =seal.clone();
+					let d_seal:Seal = Sealer::decode(&mut &c[..]).unwrap();
+					let policy = d_seal.policy;
+					break (difficulty,policy, seal)
 				}
 
 				if best_hash != client.info().best_hash {
@@ -654,6 +664,7 @@ fn mine_loop<B: BlockT, C, Algorithm, E, SO, S, CAW>(
 
 		let intermediate = PowIntermediate::<Algorithm::Difficulty> {
 			difficulty: Some(difficulty),
+			policy: Some(policy)
 		};
 
 		let mut import_block = BlockImportParams::new(BlockOrigin::Own, header);
