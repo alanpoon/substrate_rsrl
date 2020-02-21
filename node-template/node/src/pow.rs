@@ -8,7 +8,7 @@ use sc_client::{blockchain::HeaderBackend};
 use sc_client_api::{backend::AuxStore};
 use sp_runtime::codec::{Encode, Decode};
 use sc_consensus_pow::{PowAlgorithm, Error};
-use sp_consensus_pow::{Seal as RawSeal,Sealer,Difficulty};
+use sp_consensus_pow::{Seal as RawSeal,Sealer,Difficulty,DifficultyApi};
 use sha3::{Sha3_256, Digest};
 use rand::{thread_rng, SeedableRng, rngs::SmallRng};
 use std::time::Duration;
@@ -91,14 +91,14 @@ impl Compute {
 					let e = SerialExperiment::new(&mut agent, domain_builder.clone(), 1000);
 
 					// Realise 1000 episodes of the experiment generator.
-					run(e, 10, Some(logger.clone()))
+					run(e, 2, Some(logger.clone()))
 			};
 			let policyz = agent.policy();
-			println!("fa {:?}",policyz.fa());
+			//println!("fa {:?}",policyz.fa());
 			// Testing phase:
 			let testing_result = Evaluation::new(&mut agent, domain_builder).next().unwrap();
 			info!(logger, "solution"; testing_result.clone());
-			println!("res {:?}",testing_result);
+			//println!("res {:?}",testing_result);
 			
 			let calculation = Calculation {
 				difficulty: self.difficulty,
@@ -135,12 +135,17 @@ impl<C> Clone for Sha3Algorithm<C> {
 
 impl<B: BlockT<Hash=H256>, C> PowAlgorithm<B> for Sha3Algorithm<C>where
 C: HeaderBackend<B> + AuxStore + ProvideRuntimeApi<B>,
-C::Api: AlgorithmApi<B> {
+C::Api: DifficultyApi<B, Difficulty> + AlgorithmApi<B>, {
 	type Difficulty = Difficulty;
 
 	fn difficulty(&self, parent: &BlockId<B>) -> Result<Difficulty, Error<B>> {
-		
-		Ok(U256::from(10000))
+		let difficulty = self.client.runtime_api().difficulty(parent)
+			.map_err(|e| sc_consensus_pow::Error::Environment(
+				format!("Fetching difficulty from runtime failed: {:?}", e)
+			));
+
+		difficulty
+		//Ok(U256::from(10))
 	}
 	fn policy(&self, parent: &BlockId<B>) -> Result<Option<Vec<u8>>, sc_consensus_pow::Error<B>> {
 		let policy = self.client.runtime_api().policy(parent)
@@ -201,14 +206,15 @@ C::Api: AlgorithmApi<B> {
 			};
 
 			let seal = compute.compute();
-			/*let m:Vec<u8> =vec![2];
-			let k = self.client.runtime_api().get_policy(parent);
-			println!("stored {:?}",k);
-			self.client.runtime_api().set_policy(parent,m);
+			let m:Vec<u8> =vec![2];
+			let k = self.client.runtime_api().policy(parent);
+			println!("difficulty {:?}, work {:?}",difficulty,seal.work.clone());
+			println!("stored {:?} valid_hash{:?}",k,is_valid_hash(&seal.work, difficulty));
+			/*self.client.runtime_api().set_policy(parent,m);
 			*/
-			if is_valid_hash(&seal.work, difficulty) {
+			//if is_valid_hash(&seal.work, difficulty) {
 				return Ok(Some(seal.encode()))
-			}
+			//}
 
 		}
 

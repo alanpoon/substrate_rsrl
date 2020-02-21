@@ -91,6 +91,7 @@ pub mod opaque {
 	}
 }
 mod policy;
+mod difficulty;
 /// This runtime version.
 pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("node-template"),
@@ -248,6 +249,7 @@ impl policy::Trait for Runtime {
 	type Event = Event;
 }
 
+impl difficulty::Trait for Runtime { }
 construct_runtime!(
 	pub enum Runtime where
 		Block = Block,
@@ -266,6 +268,7 @@ construct_runtime!(
 		TemplateModule: template::{Module, Call, Storage, Event<T>},
 		RandomnessCollectiveFlip: randomness_collective_flip::{Module, Call, Storage},
 		Policy: policy::{Module, Call, Storage, Event<T>},
+		Difficulty: difficulty::{Module, Call, Storage, Config},
 	}
 );
 
@@ -391,6 +394,16 @@ impl_runtime_apis! {
 		}
 		fn policy()->Option<Vec<u8>>{
 			policy::Module::<Runtime>::get()
+		}
+	}
+	impl sp_consensus_pow::TimestampApi<Block, u64> for Runtime {
+		fn timestamp() -> u64 {
+			timestamp::Module::<Runtime>::get()
+		}
+	}
+	impl sp_consensus_pow::DifficultyApi<Block, sp_consensus_pow::Difficulty> for Runtime {
+		fn difficulty() -> sp_consensus_pow::Difficulty {
+			difficulty::Module::<Runtime>::difficulty()
 		}
 	}
 	/*

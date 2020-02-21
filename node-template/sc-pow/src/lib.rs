@@ -55,7 +55,7 @@ use sc_client_api;
 use log::*;
 use sp_timestamp::{InherentError as TIError, TimestampInherentData};
 use sp_std::vec::Vec;
-
+use std::io::Write;
 #[derive(derive_more::Display, Debug)]
 pub enum Error<B: BlockT> {
 	#[display(fmt = "Header uses the wrong engine {:?}", _0)]
@@ -293,6 +293,7 @@ impl<B, I, C, S, Algorithm> BlockImport<B> for PowBlockImport<B, I, C, S, Algori
 		mut block: BlockImportParams<B, Self::Transaction>,
 		new_cache: HashMap<CacheKeyId, Vec<u8>>,
 	) -> Result<ImportResult, Self::Error> {
+		debug!(target:"pow","import_block");
 		let best_hash = match self.select_chain.as_ref() {
 			Some(select_chain) => select_chain.best_chain()
 				.map_err(|e| format!("Fetch best chain failed via select chain: {:?}", e))?
@@ -356,7 +357,7 @@ impl<B, I, C, S, Algorithm> BlockImport<B> for PowBlockImport<B, I, C, S, Algori
 
 		aux.difficulty = difficulty;
 		aux.total_difficulty.increment(difficulty);
-		aux.policy = policy;
+		//aux.policy = policy;
 
 		let key = aux_key(&block.post_hash());
 		block.auxiliary.push((key, Some(aux.encode())));
@@ -522,9 +523,11 @@ pub fn start_mine<B: BlockT, C, Algorithm, E, SO, S, CAW>(
 	if let Err(_) = register_pow_inherent_data_provider(&inherent_data_providers) {
 		warn!("Registering inherent data provider for timestamp failed");
 	}
-
+	
 	thread::spawn(move || {
 		loop {
+			              
+
 			match mine_loop(
 				&mut block_import,
 				client.as_ref(),
@@ -629,17 +632,20 @@ fn mine_loop<B: BlockT, C, Algorithm, E, SO, S, CAW>(
 				&BlockId::Hash(best_hash),
 			)?;
 			loop {
+				      
 				let seal = algorithm.mine(
 					&BlockId::Hash(best_hash),
 					&header.hash(),
 					difficulty,
 					round,
 				)?;
-				
+				let s = format!("start mine {:?}",seal.clone());                                
+					println!("{}", s);  
 				if let Some(seal) = seal {
 					let mut c =seal.clone();
 					let d_seal:Sealer = Sealer::decode(&mut &c[..]).unwrap();
 					let policy = d_seal.policy;
+					
 					break (difficulty,policy, seal)
 				}
 
