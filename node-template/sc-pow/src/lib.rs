@@ -293,6 +293,8 @@ impl<B, I, C, S, Algorithm> BlockImport<B> for PowBlockImport<B, I, C, S, Algori
 		mut block: BlockImportParams<B, Self::Transaction>,
 		new_cache: HashMap<CacheKeyId, Vec<u8>>,
 	) -> Result<ImportResult, Self::Error> {
+		let z = format!("import block-");
+		println!("{}",z);
 		debug!(target:"pow","import_block");
 		let best_hash = match self.select_chain.as_ref() {
 			Some(select_chain) => select_chain.best_chain()
@@ -361,10 +363,14 @@ impl<B, I, C, S, Algorithm> BlockImport<B> for PowBlockImport<B, I, C, S, Algori
 
 		let key = aux_key(&block.post_hash());
 		block.auxiliary.push((key, Some(aux.encode())));
+		let z = format!("after push");
+		println!("{}",z);
 		if block.fork_choice.is_none() {
 			block.fork_choice = Some(ForkChoiceStrategy::Custom(
 				aux.total_difficulty > best_aux.total_difficulty
 			));
+			let z = format!("is none ");
+			println!("{}",z);
 		}
 
 		self.inner.import_block(block, new_cache).map_err(Into::into)
@@ -424,7 +430,10 @@ impl<B: BlockT, Algorithm> Verifier<B> for PowVerifier<B, Algorithm> where
 		justification: Option<Justification>,
 		body: Option<Vec<B::Extrinsic>>,
 	) -> Result<(BlockImportParams<B, ()>, Option<Vec<(CacheKeyId, Vec<u8>)>>), String> {
+		
 		let hash = header.hash();
+		let s = format!("zz: {:?}", hash);
+		println!("{:?}",s);
 		let (checked_header, seal) = self.check_header(header)?;
 
 		let intermediate = PowIntermediate::<Algorithm::Difficulty> {
@@ -671,6 +680,8 @@ fn mine_loop<B: BlockT, C, Algorithm, E, SO, S, CAW>(
 		};
 
 		let mut import_block = BlockImportParams::new(BlockOrigin::Own, header);
+		let s = format!("_1");                                
+					println!("{}", s);  
 		import_block.post_digests.push(seal);
 		import_block.body = Some(body);
 		import_block.storage_changes = Some(proposal.storage_changes);
@@ -678,9 +689,14 @@ fn mine_loop<B: BlockT, C, Algorithm, E, SO, S, CAW>(
 			Cow::from(INTERMEDIATE_KEY),
 			Box::new(intermediate) as Box<dyn Any>
 		);
+		let s = format!("_2");                                
+		println!("{}", s); 
 		import_block.post_hash = Some(hash);
-
+		let s = format!("_3 {:?}",import_block.intermediates);                                
+		println!("{}", s); 
 		block_import.import_block(import_block, HashMap::default())
 			.map_err(|e| Error::BlockBuiltError(best_hash, e))?;
+			let s = format!("_4");                                
+			println!("{}", s); 
 	}
 }
