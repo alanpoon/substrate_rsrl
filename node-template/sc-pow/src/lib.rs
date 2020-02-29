@@ -182,58 +182,69 @@ pub trait PowAlgorithm<B: BlockT> {
 		round: u32,
 	) -> Result<Option<Seal>, Error<B>>;
 }
-
-/// A block importer for PoW.
-pub struct PowBlockImport<B: BlockT, I, C, S, Algorithm> {
-	algorithm: Algorithm,
-	inner: I,
-	select_chain: Option<S>,
+/// A verifier for PoW blocks.
+pub struct PowVerifier<B: BlockT, C, S, Algorithm> {
 	client: Arc<C>,
+	algorithm: Algorithm,
 	inherent_data_providers: sp_inherents::InherentDataProviders,
+	select_chain: Option<S>,
 	check_inherents_after: <<B as BlockT>::Header as HeaderT>::Number,
 }
 
-impl<B: BlockT, I: Clone, C, S: Clone, Algorithm: Clone> Clone for PowBlockImport<B, I, C, S, Algorithm> {
-	fn clone(&self) -> Self {
-		Self {
-			algorithm: self.algorithm.clone(),
-			inner: self.inner.clone(),
-			select_chain: self.select_chain.clone(),
-			client: self.client.clone(),
-			inherent_data_providers: self.inherent_data_providers.clone(),
-			check_inherents_after: self.check_inherents_after.clone(),
-		}
-	}
-}
-
-impl<B, I, C, S, Algorithm> PowBlockImport<B, I, C, S, Algorithm> where
-	B: BlockT,
-	I: BlockImport<B, Transaction = sp_api::TransactionFor<C, B>> + Send + Sync,
-	I::Error: Into<ConsensusError>,
-	C: ProvideRuntimeApi<B> + Send + Sync + HeaderBackend<B> + AuxStore + ProvideCache<B> + BlockOf,
-	C::Api: BlockBuilderApi<B, Error = sp_blockchain::Error>,
-	Algorithm: PowAlgorithm<B>,
-{
-	/// Create a new block import suitable to be used in PoW
+impl<B: BlockT, C, S, Algorithm> PowVerifier<B, C, S, Algorithm> {
 	pub fn new(
-		inner: I,
 		client: Arc<C>,
 		algorithm: Algorithm,
 		check_inherents_after: <<B as BlockT>::Header as HeaderT>::Number,
 		select_chain: Option<S>,
 		inherent_data_providers: sp_inherents::InherentDataProviders,
 	) -> Self {
-		Self { inner, client, algorithm, check_inherents_after,
-			   select_chain, inherent_data_providers }
+		Self { client, algorithm, inherent_data_providers, select_chain, check_inherents_after }
 	}
 
+	fn check_header(
+		&self,
+		mut header: B::Header,
+		parent_block_id: BlockId<B>,
+	) -> Result<(B::Header,Algorithm::Difficulty,Option<Vec<u8>>, DigestItem<B::Hash>), Error<B>> where
+		Algorithm: PowAlgorithm<B>,
+	{
+		let hash = header.hash();
+
+		let (seal, inner_seal) = match header.digest_mut().pop() {
+			Some(DigestItem::Seal(id, seal)) => {
+				if id == POW_ENGINE_ID {
+					(DigestItem::Seal(id, seal.clone()), seal)
+				} else {
+					return Err(Error::WrongEngine(id))
+				}
+			},
+			_ => return Err(Error::HeaderUnsealed(hash)),
+		};
+
+		let pre_hash = header.hash();
+		let difficulty = self.algorithm.difficulty(&parent_block_id)?;
+		let policy = self.algorithm.policy(&parent_block_id)?;
+		if !self.algorithm.verify(
+			&parent_block_id,
+			&pre_hash,
+			&inner_seal,
+			difficulty,
+		)? {
+			return Err(Error::InvalidSeal);
+		}
+
+		Ok((header, difficulty,policy, seal))
+	}
 	fn check_inherents(
 		&self,
 		block: B,
 		block_id: BlockId<B>,
 		inherent_data: InherentData,
 		timestamp_now: u64,
-	) -> Result<(), Error<B>> {
+	) -> Result<(), Error<B>> where
+		C: ProvideRuntimeApi<B>, C::Api: BlockBuilderApi<B, Error = sp_blockchain::Error>
+	{
 		const MAX_TIMESTAMP_DRIFT_SECS: u64 = 60;
 
 		if *block.header().number() < self.check_inherents_after {
@@ -268,191 +279,65 @@ impl<B, I, C, S, Algorithm> PowBlockImport<B, I, C, S, Algorithm> where
 	}
 }
 
-impl<B, I, C, S, Algorithm> BlockImport<B> for PowBlockImport<B, I, C, S, Algorithm> where
-	B: BlockT,
-	I: BlockImport<B, Transaction = sp_api::TransactionFor<C, B>> + Send + Sync,
-	I::Error: Into<ConsensusError>,
-	S: SelectChain<B>,
+impl<B: BlockT, C, S, Algorithm> Verifier<B> for PowVerifier<B, C, S, Algorithm> where
 	C: ProvideRuntimeApi<B> + Send + Sync + HeaderBackend<B> + AuxStore + ProvideCache<B> + BlockOf,
 	C::Api: BlockBuilderApi<B, Error = sp_blockchain::Error>,
-	Algorithm: PowAlgorithm<B>,
-	Algorithm::Difficulty: 'static,
-{
-	type Error = ConsensusError;
-	type Transaction = sp_api::TransactionFor<C, B>;
-
-	fn check_block(
-		&mut self,
-		block: BlockCheckParams<B>,
-	) -> Result<ImportResult, Self::Error> {
-		self.inner.check_block(block).map_err(Into::into)
-	}
-
-	fn import_block(
-		&mut self,
-		mut block: BlockImportParams<B, Self::Transaction>,
-		new_cache: HashMap<CacheKeyId, Vec<u8>>,
-	) -> Result<ImportResult, Self::Error> {
-		let z = format!("import block-");
-		println!("{}",z);
-		debug!(target:"pow","import_block");
-		let best_hash = match self.select_chain.as_ref() {
-			Some(select_chain) => select_chain.best_chain()
-				.map_err(|e| format!("Fetch best chain failed via select chain: {:?}", e))?
-				.hash(),
-			None => self.client.info().best_hash,
-		};
-
-		let parent_hash = *block.header.parent_hash();
-		let best_aux = PowAux::read::<_, B>(self.client.as_ref(), &best_hash)?;
-		let mut aux = PowAux::read::<_, B>(self.client.as_ref(), &parent_hash)?;
-
-		if let Some(inner_body) = block.body.take() {
-			let inherent_data = self.inherent_data_providers
-				.create_inherent_data().map_err(|e| e.into_string())?;
-			let timestamp_now = inherent_data.timestamp_inherent_data().map_err(|e| e.into_string())?;
-
-			let check_block = B::new(block.header.clone(), inner_body);
-
-			self.check_inherents(
-				check_block.clone(),
-				BlockId::Hash(parent_hash),
-				inherent_data,
-				timestamp_now
-			)?;
-
-			block.body = Some(check_block.deconstruct().1);
-		}
-
-		let inner_seal = match block.post_digests.last() {
-			Some(DigestItem::Seal(id, seal)) => {
-				if id == &POW_ENGINE_ID {
-					seal.clone()
-				} else {
-					return Err(Error::<B>::WrongEngine(*id).into())
-				}
-			},
-			_ => return Err(Error::<B>::HeaderUnsealed(block.header.hash()).into()),
-		};
-
-		let intermediate = block.take_intermediate::<PowIntermediate::<Algorithm::Difficulty>>(
-			INTERMEDIATE_KEY
-		)?;
-
-		let difficulty = match intermediate.difficulty {
-			Some(difficulty) => difficulty,
-			None => self.algorithm.difficulty(&BlockId::hash(parent_hash))?,
-		};
-		let policy = match intermediate.policy {
-			Some(policy) => Some(policy),
-			None => self.algorithm.policy(&BlockId::hash(parent_hash))?,
-		};
-		let pre_hash = block.header.hash();
-		if !self.algorithm.verify(
-			&BlockId::hash(parent_hash),
-			&pre_hash,
-			&inner_seal,
-			difficulty,
-		)? {
-			return Err(Error::<B>::InvalidSeal.into())
-		}
-
-		aux.difficulty = difficulty;
-		aux.total_difficulty.increment(difficulty);
-		//aux.policy = policy;
-
-		let key = aux_key(&block.post_hash());
-		block.auxiliary.push((key, Some(aux.encode())));
-		let z = format!("after push");
-		println!("{}",z);
-		if block.fork_choice.is_none() {
-			block.fork_choice = Some(ForkChoiceStrategy::Custom(
-				aux.total_difficulty > best_aux.total_difficulty
-			));
-			let z = format!("is none ");
-			println!("{}",z);
-		}
-
-		self.inner.import_block(block, new_cache).map_err(Into::into)
-	}
-}
-
-/// A verifier for PoW blocks.
-pub struct PowVerifier<B: BlockT, Algorithm> {
-	algorithm: Algorithm,
-	_marker: PhantomData<B>,
-}
-
-impl<B: BlockT, Algorithm> PowVerifier<B, Algorithm> {
-	pub fn new(
-		algorithm: Algorithm,
-	) -> Self {
-		Self { algorithm, _marker: PhantomData }
-	}
-
-	fn check_header(
-		&self,
-		mut header: B::Header,
-	) -> Result<(B::Header, DigestItem<B::Hash>), Error<B>> where
-		Algorithm: PowAlgorithm<B>,
-	{
-		let hash = header.hash();
-
-		let (seal, inner_seal) = match header.digest_mut().pop() {
-			Some(DigestItem::Seal(id, seal)) => {
-				if id == POW_ENGINE_ID {
-					(DigestItem::Seal(id, seal.clone()), seal)
-				} else {
-					return Err(Error::WrongEngine(id))
-				}
-			},
-			_ => return Err(Error::HeaderUnsealed(hash)),
-		};
-
-		let pre_hash = header.hash();
-
-		if !self.algorithm.preliminary_verify(&pre_hash, &inner_seal)?.unwrap_or(true) {
-			return Err(Error::FailedPreliminaryVerify);
-		}
-
-		Ok((header, seal))
-	}
-}
-
-impl<B: BlockT, Algorithm> Verifier<B> for PowVerifier<B, Algorithm> where
+	S: SelectChain<B>,
 	Algorithm: PowAlgorithm<B> + Send + Sync,
-	Algorithm::Difficulty: 'static,
 {
 	fn verify(
 		&mut self,
 		origin: BlockOrigin,
 		header: B::Header,
 		justification: Option<Justification>,
-		body: Option<Vec<B::Extrinsic>>,
+		mut body: Option<Vec<B::Extrinsic>>,
 	) -> Result<(BlockImportParams<B, ()>, Option<Vec<(CacheKeyId, Vec<u8>)>>), String> {
-		
-		let hash = header.hash();
-		let s = format!("zz: {:?}", hash);
-		println!("{:?}",s);
-		let (checked_header, seal) = self.check_header(header)?;
+		let inherent_data = self.inherent_data_providers
+			.create_inherent_data().map_err(|e| e.into_string())?;
+		let timestamp_now = inherent_data.timestamp_inherent_data().map_err(|e| e.into_string())?;
 
-		let intermediate = PowIntermediate::<Algorithm::Difficulty> {
-			difficulty: None,
-			policy: None
+		let best_hash = match self.select_chain.as_ref() {
+			Some(select_chain) => select_chain.best_chain()
+				.map_err(|e| format!("Fetch best chain failed via select chain: {:?}", e))?
+				.hash(),
+			None => self.client.info().best_hash,
 		};
+		let hash = header.hash();
+		let parent_hash = *header.parent_hash();
+		let best_aux = PowAux::read::<_, B>(self.client.as_ref(), &best_hash)?;
+		let mut aux = PowAux::read::<_, B>(self.client.as_ref(), &parent_hash)?;
 
+		let (checked_header, difficulty, policy, seal) = self.check_header(
+			header,
+			BlockId::Hash(parent_hash),
+		)?;
+		let mut c =seal.clone();
+		aux.difficulty = difficulty;
+		aux.total_difficulty.increment(difficulty);
+		aux.policy = policy;
+
+		if let Some(inner_body) = body.take() {
+			let block = B::new(checked_header.clone(), inner_body);
+
+			self.check_inherents(
+				block.clone(),
+				BlockId::Hash(parent_hash),
+				inherent_data,
+				timestamp_now
+			)?;
+
+			let (_, inner_body) = block.deconstruct();
+			body = Some(inner_body);
+		}
+		let key = aux_key(&hash);
 		let mut import_block = BlockImportParams::new(origin, checked_header);
-		import_block.post_digests.push(seal);
-		import_block.body = body;
+		import_block.post_digests = vec![seal];
 		import_block.justification = justification;
-		import_block.intermediates.insert(
-			Cow::from(INTERMEDIATE_KEY),
-			Box::new(intermediate) as Box<dyn Any>
-		);
-		import_block.post_hash = Some(hash);
-
+		import_block.auxiliary = vec![(key, Some(aux.encode()))];
+		import_block.fork_choice = Some(ForkChoiceStrategy::Custom(aux.total_difficulty > best_aux.total_difficulty));
 		Ok((import_block, None))
 	}
+	
 }
 
 /// Register the PoW inherent data provider, if not registered already.
@@ -473,21 +358,30 @@ pub fn register_pow_inherent_data_provider(
 pub type PowImportQueue<B, Transaction> = BasicQueue<B, Transaction>;
 
 /// Import queue for PoW engine.
-pub fn import_queue<B, Transaction, Algorithm>(
-	block_import: BoxBlockImport<B, Transaction>,
+pub fn import_queue<B, C, S, Algorithm>(
+	block_import: BoxBlockImport<B, sp_api::TransactionFor<C, B>>,
+	client: Arc<C>,
 	algorithm: Algorithm,
+	check_inherents_after: <<B as BlockT>::Header as HeaderT>::Number,
+	select_chain: Option<S>,
 	inherent_data_providers: InherentDataProviders,
-) -> Result<
-	PowImportQueue<B, Transaction>,
-	sp_consensus::Error
-> where
+) -> Result<PowImportQueue<B,sp_api::TransactionFor<C, B>>, sp_consensus::Error> where
 	B: BlockT,
-	Transaction: Send + Sync + 'static,
-	Algorithm: PowAlgorithm<B> + Clone + Send + Sync + 'static,
-{
+	C: ProvideRuntimeApi<B> + HeaderBackend<B> + BlockOf + ProvideCache<B> + AuxStore,
+	C: Send + Sync + AuxStore + 'static,
+	C::Api: BlockBuilderApi<B, Error = sp_blockchain::Error>,
+	Algorithm: PowAlgorithm<B> + Send + Sync + 'static,
+	S: SelectChain<B> + 'static,
+	{
 	register_pow_inherent_data_provider(&inherent_data_providers)?;
 
-	let verifier = PowVerifier::new(algorithm);
+	let verifier = PowVerifier::new(
+		client.clone(),
+		algorithm,
+		check_inherents_after,
+		select_chain,
+		inherent_data_providers,
+	);
 
 	Ok(BasicQueue::new(
 		verifier,
@@ -618,7 +512,7 @@ fn mine_loop<B: BlockT, C, Algorithm, E, SO, S, CAW>(
 			std::thread::sleep(std::time::Duration::from_secs(1));
 			continue 'outer
 		}
-
+		let mut aux = PowAux::read(client, &best_hash)?;
 		let mut proposer = futures::executor::block_on(env.init(&best_header))
 			.map_err(|e| Error::Environment(format!("{:?}", e)))?;
 
@@ -640,6 +534,9 @@ fn mine_loop<B: BlockT, C, Algorithm, E, SO, S, CAW>(
 			let difficulty = algorithm.difficulty(
 				&BlockId::Hash(best_hash),
 			)?;
+			let policy = algorithm.policy(
+				&BlockId::Hash(best_hash),
+			)?;
 			loop {
 				      
 				let seal = algorithm.mine(
@@ -651,10 +548,6 @@ fn mine_loop<B: BlockT, C, Algorithm, E, SO, S, CAW>(
 				let s = format!("start mine {:?}",seal.clone());                                
 					println!("{}", s);  
 				if let Some(seal) = seal {
-					let mut c =seal.clone();
-					let d_seal:Sealer = Sealer::decode(&mut &c[..]).unwrap();
-					let policy = d_seal.policy;
-					
 					break (difficulty,policy, seal)
 				}
 
@@ -663,37 +556,24 @@ fn mine_loop<B: BlockT, C, Algorithm, E, SO, S, CAW>(
 				}
 			}
 		};
-
-		let (hash, seal) = {
-			let seal = DigestItem::Seal(POW_ENGINE_ID, seal);
+		aux.difficulty = difficulty;
+		aux.total_difficulty.increment(difficulty);
+		let hash = {
 			let mut header = header.clone();
-			header.digest_mut().push(seal);
-			let hash = header.hash();
-			let seal = header.digest_mut().pop()
-				.expect("Pushed one seal above; length greater than zero; qed");
-			(hash, seal)
+			header.digest_mut().push(DigestItem::Seal(POW_ENGINE_ID, seal.clone()));
+			header.hash()
 		};
-
-		let intermediate = PowIntermediate::<Algorithm::Difficulty> {
-			difficulty: Some(difficulty),
-			policy: Some(policy)
-		};
-
+		let key = aux_key(&hash);
+		let best_aux = PowAux::<Algorithm::Difficulty>::read(client, &best_hash)?;
+		if best_aux.total_difficulty > aux.total_difficulty {
+			continue 'outer
+		}
 		let mut import_block = BlockImportParams::new(BlockOrigin::Own, header);
-		let s = format!("_1");                                
-					println!("{}", s);  
-		import_block.post_digests.push(seal);
-		import_block.body = Some(body);
-		import_block.storage_changes = Some(proposal.storage_changes);
-		import_block.intermediates.insert(
-			Cow::from(INTERMEDIATE_KEY),
-			Box::new(intermediate) as Box<dyn Any>
-		);
-		let s = format!("_2");                                
-		println!("{}", s); 
-		import_block.post_hash = Some(hash);
-		let s = format!("_3 {:?}",import_block.intermediates);                                
-		println!("{}", s); 
+		import_block.fork_choice = Some(ForkChoiceStrategy::Custom(true));
+		import_block.post_digests= vec![DigestItem::Seal(POW_ENGINE_ID, seal)];
+		import_block.finalized = false;
+		import_block.justification = None;
+		import_block.auxiliary= vec![(key, Some(aux.encode()))];
 		block_import.import_block(import_block, HashMap::default())
 			.map_err(|e| Error::BlockBuiltError(best_hash, e))?;
 			let s = format!("_4");                                

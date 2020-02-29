@@ -30,7 +30,6 @@ construct_simple_protocol! {
 /// be able to perform chain operations.
 macro_rules! new_full_start {
 	($config:expr) => {{
-		let mut import_setup = None;
 		let inherent_data_providers = sp_inherents::InherentDataProviders::new();
 
 		let builder = sc_service::ServiceBuilder::new_full::<
@@ -45,30 +44,18 @@ macro_rules! new_full_start {
 			})?
 			.with_import_queue(|_config, client, mut select_chain, transaction_pool| {
 				let algorithm = crate::pow::Sha3Algorithm::new(client.clone());
-				let select_chain = select_chain.take()
-					.ok_or_else(|| sc_service::Error::SelectChainRequired)?;
-				let (grandpa_block_import, grandpa_link) =
-					grandpa::block_import::<_, _, _, node_template_runtime::RuntimeApi, _>(
-						client.clone(), &*client, select_chain.clone()
-					)?;
-				let block_import = sc_consensus_pow::PowBlockImport::new(
-					grandpa_block_import.clone(),
-					client.clone(),
-					algorithm.clone(),
-					0,
-					Some(select_chain),
-					inherent_data_providers.clone(),
-				);
 				let import_queue = sc_consensus_pow::import_queue(
-					Box::new(block_import.clone()),
+					Box::new(client.clone()),
+					client.clone(),
 					algorithm,
+					0,
+					select_chain,
 					inherent_data_providers.clone(),
 				)?;
-				import_setup = Some(block_import);
 				Ok(import_queue)
 			})?;
 
-		(builder, import_setup,inherent_data_providers)
+		(builder, inherent_data_providers)
 	}}
 }
 
@@ -85,16 +72,13 @@ pub fn new_full(config: Configuration<GenesisConfig>)
 	// never actively participate in any consensus process.
 	let participates_in_consensus = is_authority && !config.sentry_mode;
 	println!("before full start");
-	let (builder, mut import_setup, inherent_data_providers) = new_full_start!(config);
+	let (builder, inherent_data_providers) = new_full_start!(config);
 	println!("after full start");
-	let block_import =
-		import_setup.take()
-			.expect("Link Half and Block Import are present for Full Services or setup failed before. qed");
-
-	let service = builder.with_network_protocol(|_| Ok(NodeProtocol::new()))?
-		.with_finality_proof_provider(|client, backend|
-			Ok(Arc::new(GrandpaFinalityProofProvider::new(backend, client)) as _)
-		)?
+	let service = builder
+		.with_network_protocol(|_| Ok(NodeProtocol::new()))?
+		.with_finality_proof_provider(|_client, _backend| {
+			Ok(Arc::new(()) as _)
+		})?
 		.build()?;
 
 	if participates_in_consensus {
@@ -121,13 +105,6 @@ pub fn new_full(config: Configuration<GenesisConfig>)
 
 	}
 
-	// if the node isn't actively participating in consensus then it doesn't
-	// need a keystore, regardless of which protocol we use below.
-	let keystore = if participates_in_consensus {
-		Some(service.keystore())
-	} else {
-		None
-	};
 	Ok(service)
 }
 
@@ -151,23 +128,15 @@ pub fn new_light(config: Configuration<GenesisConfig>)
 			);
 			Ok(pool)
 		})?
-		.with_import_queue_and_fprb(|_config, client, backend, fetcher, select_chain, _tx_pool| {
-			
+		.with_import_queue_and_fprb(|_config, client, backend, fetcher, select_chain, _tx_pool| {			
 			let fprb = Box::new(DummyFinalityProofRequestBuilder::default()) as Box<_>;
-
 			let algorithm = crate::pow::Sha3Algorithm::new(client.clone());
-
-			let block_import = sc_consensus_pow::PowBlockImport::new(
+			let import_queue = sc_consensus_pow::import_queue(
+				Box::new(client.clone()),
 				client.clone(),
-				client.clone(),
-				algorithm.clone(),
+				algorithm,
 				0,
 				select_chain,
-				inherent_data_providers.clone(),
-			);
-			let import_queue = sc_consensus_pow::import_queue(
-				Box::new(block_import),
-				Sha3Algorithm::new(client),
 				inherent_data_providers.clone(),
 			)?;
 
@@ -175,7 +144,7 @@ pub fn new_light(config: Configuration<GenesisConfig>)
 		})?
 		.with_network_protocol(|_| Ok(NodeProtocol::new()))?
 		.with_finality_proof_provider(|client, backend|
-			Ok(Arc::new(GrandpaFinalityProofProvider::new(backend, client)) as _)
+			Ok(Arc::new(()) as _)
 		)?
 		.build()
 }

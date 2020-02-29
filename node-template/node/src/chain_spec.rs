@@ -143,7 +143,7 @@ fn testnet_genesis(initial_authorities: Vec<(AuraId, GrandpaId)>,
 			authorities: initial_authorities.iter().map(|x| (x.1.clone(), 1)).collect(),
 		}),
 		difficulty: Some(DifficultyConfig {
-			initial_difficulty: U256::from(200),
+			initial_difficulty: U256::from(1),
 		}),
 	}
 }

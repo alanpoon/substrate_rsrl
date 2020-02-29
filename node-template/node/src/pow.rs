@@ -99,19 +99,20 @@ impl Compute {
 			let testing_result = Evaluation::new(&mut agent, domain_builder).next().unwrap();
 			info!(logger, "solution"; testing_result.clone());
 			//println!("res {:?}",testing_result);
-			
+			let mut rng = SmallRng::from_rng(&mut thread_rng()).unwrap();
 			let calculation = Calculation {
 				difficulty: self.difficulty,
 				pre_hash: self.pre_hash,
 				nonce: self.nonce,
 			};
-			let work = H256::from_slice(Sha3_256::digest(&calculation.encode()[..]).as_slice());
-
+			let nonce = H256::random_using(&mut rng);
+			println!("difficulty {:?}",self.difficulty);
+			//let work = H256::from_slice(Sha3_256::digest(&calculation.encode()[..]).as_slice());
+			let work = nonce;
 			Sealer {
 				nonce: self.nonce,
 				difficulty: self.difficulty,
-				work: H256::from(work),
-				policy: vec![2]
+				work: H256::from(work)
 			}
 		})
 		
