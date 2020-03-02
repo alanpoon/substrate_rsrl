@@ -513,6 +513,7 @@ fn mine_loop<B: BlockT, C, Algorithm, E, SO, S, CAW>(
 			continue 'outer
 		}
 		let mut aux = PowAux::read(client, &best_hash)?;
+		println!("{:}",format!("best_header {:?}",best_header));
 		let mut proposer = futures::executor::block_on(env.init(&best_header))
 			.map_err(|e| Error::Environment(format!("{:?}", e)))?;
 
@@ -526,8 +527,8 @@ fn mine_loop<B: BlockT, C, Algorithm, E, SO, S, CAW>(
 			inherent_data,
 			inherent_digest,
 			build_time.clone(),
-			RecordProof::No,
-		)).map_err(|e| Error::BlockProposingError(format!("{:?}", e)))?;
+			RecordProof::Yes,
+		)).map_err(|e| Error::BlockProposingError(format!("proposal {:?}", e)))?;
 
 		let (header, body) = proposal.block.deconstruct();
 		let (difficulty, policy, seal) = {

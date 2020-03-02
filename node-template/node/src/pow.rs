@@ -105,10 +105,10 @@ impl Compute {
 				pre_hash: self.pre_hash,
 				nonce: self.nonce,
 			};
-			let nonce = H256::random_using(&mut rng);
+			let work = H256::random_using(&mut rng);
 			println!("difficulty {:?}",self.difficulty);
 			//let work = H256::from_slice(Sha3_256::digest(&calculation.encode()[..]).as_slice());
-			let work = nonce;
+			//let work = nonce;
 			Sealer {
 				nonce: self.nonce,
 				difficulty: self.difficulty,
@@ -213,9 +213,9 @@ C::Api: DifficultyApi<B, Difficulty> + AlgorithmApi<B>, {
 			println!("stored {:?} valid_hash{:?}",k,is_valid_hash(&seal.work, difficulty));
 			/*self.client.runtime_api().set_policy(parent,m);
 			*/
-			//if is_valid_hash(&seal.work, difficulty) {
+			if is_valid_hash(&seal.work, difficulty) {
 				return Ok(Some(seal.encode()))
-			//}
+			}
 
 		}
 
