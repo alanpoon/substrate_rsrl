@@ -112,7 +112,8 @@ impl Compute {
 			Sealer {
 				nonce: self.nonce,
 				difficulty: self.difficulty,
-				work: H256::from(work)
+				work: H256::from(work),
+				policy: vec![2]
 			}
 		})
 		
@@ -209,13 +210,13 @@ C::Api: DifficultyApi<B, Difficulty> + AlgorithmApi<B>, {
 			let seal = compute.compute();
 			let m:Vec<u8> =vec![2];
 			let k = self.client.runtime_api().policy(parent);
-			println!("difficulty {:?}, work {:?}",difficulty,seal.work.clone());
 			println!("stored {:?} valid_hash{:?}",k,is_valid_hash(&seal.work, difficulty));
-			/*self.client.runtime_api().set_policy(parent,m);
-			*/
-			if is_valid_hash(&seal.work, difficulty) {
+			self.client.runtime_api().set_policy(parent,m);
+			let k = self.client.runtime_api().policy(parent);
+			println!("after {:?}",k);
+			//if is_valid_hash(&seal.work, difficulty) {
 				return Ok(Some(seal.encode()))
-			}
+			//}
 
 		}
 

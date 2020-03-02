@@ -546,10 +546,11 @@ fn mine_loop<B: BlockT, C, Algorithm, E, SO, S, CAW>(
 					difficulty,
 					round,
 				)?;
-				let s = format!("start mine {:?}",seal.clone());                                
-					println!("{}", s);  
 				if let Some(seal) = seal {
-					break (difficulty,policy, seal)
+					let s = Sealer::decode(&mut &seal[..]).unwrap();
+					break (difficulty,s.policy, seal)
+				}else{
+					println!("{:?}",format!("no seal "));
 				}
 
 				if best_hash != client.info().best_hash {
@@ -559,6 +560,8 @@ fn mine_loop<B: BlockT, C, Algorithm, E, SO, S, CAW>(
 		};
 		aux.difficulty = difficulty;
 		aux.total_difficulty.increment(difficulty);
+		println!("{:?}",format!("policy {:?}",policy));
+		aux.policy = Some(policy);
 		let hash = {
 			let mut header = header.clone();
 			header.digest_mut().push(DigestItem::Seal(POW_ENGINE_ID, seal.clone()));
@@ -577,7 +580,5 @@ fn mine_loop<B: BlockT, C, Algorithm, E, SO, S, CAW>(
 		import_block.auxiliary= vec![(key, Some(aux.encode()))];
 		block_import.import_block(import_block, HashMap::default())
 			.map_err(|e| Error::BlockBuiltError(best_hash, e))?;
-			let s = format!("_4");                                
-			println!("{}", s); 
 	}
 }

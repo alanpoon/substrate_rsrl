@@ -68,5 +68,6 @@ pub type Difficulty = U256;
 pub struct Sealer {
 	pub difficulty: Difficulty,
 	pub work: H256,
-	pub nonce: H256
+	pub nonce: H256,
+	pub policy: Vec<u8>
 }
