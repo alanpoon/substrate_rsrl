@@ -128,7 +128,8 @@ pub struct PowAux<Difficulty> {
 	pub difficulty: Difficulty,
 	/// Total difficulty up to current block.
 	pub total_difficulty: Difficulty,
-	pub policy: Vec<u8>
+	pub policy: Vec<u8>,
+	pub steps: Option<u64>
 }
 
 impl<Difficulty> PowAux<Difficulty> where
@@ -172,6 +173,7 @@ pub trait PowAlgorithm<B: BlockT> {
 		pre_hash: &B::Hash,
 		seal: &Seal,
 		difficulty: Self::Difficulty,
+		policy: Option<Vec<u8>>,
 	) -> Result<bool, Error<B>>;
 	/// Mine a seal that satisfies the given difficulty.
 	fn mine(
@@ -179,8 +181,8 @@ pub trait PowAlgorithm<B: BlockT> {
 		parent: &BlockId<B>,
 		pre_hash: &B::Hash,
 		difficulty: Self::Difficulty,
-		policy: Vec<u8>,
-		round: u32,
+		policy: Option<Vec<u8>>,
+		round: usize,
 	) -> Result<Option<Seal>, Error<B>>;
 }
 /// A verifier for PoW blocks.
@@ -225,17 +227,18 @@ impl<B: BlockT, C, S, Algorithm> PowVerifier<B, C, S, Algorithm> {
 
 		let pre_hash = header.hash();
 		let difficulty = self.algorithm.difficulty(&parent_block_id)?;
-		let policy = self.algorithm.policy(&parent_block_id).unwrap().unwrap_or(vec![]);
+		let policy = self.algorithm.policy(&parent_block_id)?;
 		if !self.algorithm.verify(
 			&parent_block_id,
 			&pre_hash,
 			&inner_seal,
 			difficulty,
+			policy.clone()
 		)? {
 			return Err(Error::InvalidSeal);
 		}
 
-		Ok((header, difficulty,policy, seal))
+		Ok((header, difficulty,policy.unwrap(), seal))
 	}
 	fn check_inherents(
 		&self,
@@ -408,7 +411,7 @@ pub fn start_mine<B: BlockT, C, Algorithm, E, SO, S, CAW>(
 	algorithm: Algorithm,
 	mut env: E,
 	preruntime: Option<Vec<u8>>,
-	round: u32,
+	rounds: usize,
 	mut sync_oracle: SO,
 	build_time: std::time::Duration,
 	select_chain: Option<S>,
@@ -438,7 +441,7 @@ pub fn start_mine<B: BlockT, C, Algorithm, E, SO, S, CAW>(
 				&algorithm,
 				&mut env,
 				preruntime.as_ref(),
-				round,
+				rounds,
 				&mut sync_oracle,
 				build_time.clone(),
 				select_chain.as_ref(),
@@ -462,7 +465,7 @@ fn mine_loop<B: BlockT, C, Algorithm, E, SO, S, CAW>(
 	algorithm: &Algorithm,
 	env: &mut E,
 	preruntime: Option<&Vec<u8>>,
-	round: u32,
+	rounds: usize,
 	sync_oracle: &mut SO,
 	build_time: std::time::Duration,
 	select_chain: Option<&S>,
@@ -538,8 +541,8 @@ fn mine_loop<B: BlockT, C, Algorithm, E, SO, S, CAW>(
 					&BlockId::Hash(best_hash),
 					&header.hash(),
 					aux.difficulty,
-					aux.policy.clone(),
-					round,
+					Some(aux.policy.clone()),
+					rounds,
 				)?;
 				if let Some(seal) = seal {
 					let s = Sealer::decode(&mut &seal[..]).unwrap();

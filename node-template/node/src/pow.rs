@@ -16,7 +16,7 @@ use std::sync::Arc;
 use std::cell::RefCell;
 use sp_std::vec::Vec;
 use policy_primitives::{AlgorithmApi};
-
+use serde_cbor;
 use rsrl::{
 	control::{ac::A2C, td::SARSA},
 	domains::{Domain, MountainCar},
@@ -51,19 +51,25 @@ pub struct Compute {
 thread_local!(static MACHINES: RefCell<Option<H256>> = RefCell::new(None));
 
 impl Compute {
-	pub fn compute(self) -> Sealer {
+	pub fn compute(self,initial_policy:Option<Vec<u8>>,rounds:usize) -> Sealer {
 		println!("start compute");
 		MACHINES.with(|m|{
 			let domain = MountainCar::default();
 
 			let n_actions:usize = domain.action_space().card().into();
 			let bases = Fourier::from_space(3, domain.state_space()).with_constant();
-
-			let policy = make_shared({
+			let policy = if let(Some(policy))=initial_policy{
+				println!("initial policy {:?}",policy);
+				make_shared({
+					Gibbs::standard(serde_cbor::de::from_slice(&policy).unwrap())
+				})
+			}else{
+				make_shared({
 					let fa = LFA::vector(bases.clone(), SGD(1.0), n_actions);
-
 					Gibbs::standard(fa)
-			});
+				})
+			};
+
 			let critic = {
 					let q_func = LFA::vector(bases, SGD(1.0), n_actions);
 
@@ -79,34 +85,26 @@ impl Compute {
 			let _training_result = {
 					// Start a serial learning experiment up to 1000 steps per episode.
 					let e = SerialExperiment::new(&mut agent, domain_builder.clone(), 1000);
-
 					// Realise 1000 episodes of the experiment generator.
-					run(e, 2, Some(logger.clone()))
+					run(e, rounds, Some(logger.clone()))
 			};
-			let policyz = agent.policy();
-			//println!("fa {:?}",policyz.fa());
+			let policy = serde_cbor::ser::to_vec_packed(&agent.policy().fa()).unwrap();
 			// Testing phase:
 			let testing_result = Evaluation::new(&mut agent, domain_builder).next().unwrap();
 			info!(logger, "solution"; testing_result.clone());
-			//println!("res {:?}",testing_result);
-			let mut rng = SmallRng::from_rng(&mut thread_rng()).unwrap();
 			let calculation = Calculation {
 				difficulty: self.difficulty,
 				pre_hash: self.pre_hash,
 				nonce: self.nonce,
 			};
-			let work = H256::random_using(&mut rng);
 			println!("difficulty {:?}",self.difficulty);
-			//let work = H256::from_slice(Sha3_256::digest(&calculation.encode()[..]).as_slice());
-			//let work = nonce;
 			Sealer {
 				nonce: self.nonce,
 				difficulty: self.difficulty,
-				work: H256::from(work),
-				policy: vec![2]
+				policy: policy,
+				steps:testing_result.steps
 			}
 		})
-		
 	}
 }
 //#[derive(Clone)]
@@ -153,22 +151,22 @@ C::Api: DifficultyApi<B, Difficulty> + AlgorithmApi<B>, {
 		pre_hash: &H256,
 		seal: &RawSeal,
 		difficulty: Difficulty,
+		policy: Option<Vec<u8>>,
 	) -> Result<bool, Error<B>> {
 		let seal = match Sealer::decode(&mut &seal[..]) {
 			Ok(seal) => seal,
 			Err(_) => return Ok(false),
 		};
-
+		let old_steps = seal.steps;
 		let compute = Compute {
 			difficulty,
 			pre_hash: *pre_hash,
 			nonce: seal.nonce
 		};
 
-		if compute.compute() != seal {
+		if compute.compute(policy,1).steps >= old_steps {
 			return Ok(false)
 		}
-
 		Ok(true)
 	}
 
@@ -177,28 +175,18 @@ C::Api: DifficultyApi<B, Difficulty> + AlgorithmApi<B>, {
 		parent: &BlockId<B>,
 		pre_hash: &H256,
 		difficulty: Difficulty,
-		policy: Vec<u8>,
-		round: u32,
+		policy: Option<Vec<u8>>,
+		rounds: usize,
 	) -> Result<Option<RawSeal>, Error<B>> {
 		let mut rng = SmallRng::from_rng(&mut thread_rng())
 			.map_err(|e| Error::Environment(format!("Initialize RNG failed for mining: {:?}", e)))?;
-
-		for _ in 0..round {
-			std::thread::sleep(Duration::new(1, 0));
-
-			let nonce = H256::random_using(&mut rng);
-
-			let compute = Compute {
-				difficulty,
-				pre_hash: *pre_hash,
-				nonce,
-			};
-			
-			let seal = compute.compute();
-			return Ok(Some(seal.encode()))
-
-		}
-
-		Ok(None)
+		let nonce = H256::random_using(&mut rng);
+		let compute = Compute {
+			difficulty,
+			pre_hash: *pre_hash,
+			nonce,
+		};
+		let seal = compute.compute(policy,rounds);
+		Ok(Some(seal.encode()))
 	}
 }

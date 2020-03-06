@@ -40,10 +40,11 @@ sha3 = { version = "0.8", default-features = false }
 rand = { version = "0.7", features = ["small_rng"] }
 codec = { package = "parity-scale-codec", version = "1.0.0" }
 policy-primitives = {path="../primitives" ,default-features = false}
-rsrl = {path = "../vendor/rsrl/rsrl"}
+rsrl = {path = "../vendor/rsrl/rsrl",features=["serialize"]}
 blas-src = { version = "0.3", default-features = false, features = ["openblas"] }
 openblas-src = { version = "0.6", default-features = false, features = ["cblas", "system"] }
 slog = "2.5"
+serde_cbor = { version = "0.10" }
 
 [build-dependencies]
 vergen = "3.0.4"

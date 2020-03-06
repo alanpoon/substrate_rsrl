@@ -67,7 +67,7 @@ pub type Difficulty = U256;
 #[derive(Clone, PartialEq, Eq, Encode, Decode, Debug)]
 pub struct Sealer {
 	pub difficulty: Difficulty,
-	pub work: H256,
 	pub nonce: H256,
-	pub policy: Vec<u8>
+	pub policy: Vec<u8>,
+	pub steps: u64
 }

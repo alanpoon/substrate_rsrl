@@ -88,7 +88,7 @@ pub fn new_full(config: Configuration<GenesisConfig>)
 		};
 
 		let client = service.client();
-		let round = 1;
+		let round = 10;
 		sc_consensus_pow::start_mine(
 				Box::new(service.client().clone()),
 				service.client(),
