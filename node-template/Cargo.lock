@@ -1431,6 +1431,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "half"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f36b5f248235f45773d4944f555f83ea61fe07b18b561ccf99d7483d7381e54d"
+
+[[package]]
 name = "hash-db"
 version = "0.15.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2022,6 +2028,7 @@ dependencies = [
  "itertools 0.8.2",
  "lfa_derive",
  "ndarray",
+ "serde",
  "spaces",
 ]
 
@@ -2789,6 +2796,7 @@ dependencies = [
  "sc-network",
  "sc-service",
  "sc-transaction-pool",
+ "serde_cbor",
  "sha3",
  "slog",
  "sp-api",
@@ -4819,6 +4827,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_cbor"
+version = "0.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f7081ed758ec726a6ed8ee7e92f5d3f6e6f8c3901b1f972e3a4a2f2599fad14f"
+dependencies = [
+ "byteorder 1.3.4",
+ "half",
+ "serde",
+]
+
+[[package]]
 name = "serde_derive"
 version = "1.0.104"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5498,6 +5517,7 @@ checksum = "5897ef48e6efcee1ca844267cd2036bc67e056612c48e445e240dbe25e193ceb"
 dependencies = [
  "itertools 0.8.2",
  "num-traits",
+ "serde",
 ]
 
 [[package]]

@@ -182,7 +182,6 @@ pub trait PowAlgorithm<B: BlockT> {
 		pre_hash: &B::Hash,
 		difficulty: Self::Difficulty,
 		policy: Option<Vec<u8>>,
-		round: usize,
 	) -> Result<Option<Seal>, Error<B>>;
 }
 /// A verifier for PoW blocks.
@@ -536,17 +535,19 @@ fn mine_loop<B: BlockT, C, Algorithm, E, SO, S, CAW>(
 
 		let (header, body) = proposal.block.deconstruct();
 		let (difficulty, policy, seal) = {
+			let difficulty = algorithm.difficulty(
+				&BlockId::Hash(best_hash),
+			)?;
 			loop {
 				let seal = algorithm.mine(
 					&BlockId::Hash(best_hash),
 					&header.hash(),
-					aux.difficulty,
+					difficulty,
 					aux.policy.clone(),
-					rounds,
 				)?;
 				if let Some(seal) = seal {
 					let s = Sealer::decode(&mut &seal[..]).unwrap();
-					break (aux.difficulty,s.policy, seal)
+					break (difficulty,s.policy, seal)
 				}
 
 				if best_hash != client.info().best_hash {

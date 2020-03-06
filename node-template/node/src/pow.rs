@@ -171,7 +171,6 @@ C::Api: DifficultyApi<B, Difficulty> + AlgorithmApi<B>, {
 		pre_hash: &H256,
 		difficulty: Difficulty,
 		policy: Option<Vec<u8>>,
-		rounds: usize,
 	) -> Result<Option<RawSeal>, Error<B>> {
 		let mut rng = SmallRng::from_rng(&mut thread_rng())
 			.map_err(|e| Error::Environment(format!("Initialize RNG failed for mining: {:?}", e)))?;
@@ -181,7 +180,8 @@ C::Api: DifficultyApi<B, Difficulty> + AlgorithmApi<B>, {
 			pre_hash: *pre_hash,
 			nonce,
 		};
-		let seal = compute.compute(policy,rounds);
+		println!("diff {:?} initial_policy {:?}",difficulty.as_usize(), policy.clone());
+		let seal = compute.compute(policy,difficulty.as_usize());
 		Ok(Some(seal.encode()))
 	}
 }

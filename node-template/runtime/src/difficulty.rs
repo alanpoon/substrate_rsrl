@@ -45,7 +45,7 @@ decl_storage! {
 decl_module! {
 	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
 		fn on_finalize(_n: T::BlockNumber) {
-			/*
+			
 			let mut data = PastDifficultiesAndTimestamps::<T>::get();
 
 			for i in 1..data.len() {
@@ -100,7 +100,6 @@ decl_module! {
 
 			<PastDifficultiesAndTimestamps<T>>::put(data);
 			<CurrentDifficulty>::put(difficulty);
-			*/
 		}
 
 	}
