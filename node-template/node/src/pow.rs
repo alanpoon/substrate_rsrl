@@ -46,7 +46,6 @@ pub struct Compute {
 	pub pre_hash: H256,
 	pub difficulty: Difficulty,
 	pub nonce: H256,
-	
 }
 thread_local!(static MACHINES: RefCell<Option<H256>> = RefCell::new(None));
 
@@ -59,7 +58,6 @@ impl Compute {
 			let n_actions:usize = domain.action_space().card().into();
 			let bases = Fourier::from_space(3, domain.state_space()).with_constant();
 			let policy = if let(Some(policy))=initial_policy{
-				println!("initial policy {:?}",policy);
 				make_shared({
 					Gibbs::standard(serde_cbor::de::from_slice(&policy).unwrap())
 				})
@@ -83,12 +81,10 @@ impl Compute {
 			
 			// Training phase:
 			let _training_result = {
-					// Start a serial learning experiment up to 1000 steps per episode.
 					let e = SerialExperiment::new(&mut agent, domain_builder.clone(), 1000);
-					// Realise 1000 episodes of the experiment generator.
 					run(e, rounds, Some(logger.clone()))
 			};
-			let policy = serde_cbor::ser::to_vec_packed(&agent.policy().fa()).unwrap();
+			let policy = serde_cbor::ser::to_vec(&agent.policy().fa()).unwrap();
 			// Testing phase:
 			let testing_result = Evaluation::new(&mut agent, domain_builder).next().unwrap();
 			info!(logger, "solution"; testing_result.clone());
@@ -135,7 +131,6 @@ C::Api: DifficultyApi<B, Difficulty> + AlgorithmApi<B>, {
 			));
 
 		difficulty
-		//Ok(U256::from(10))
 	}
 	fn policy(&self, parent: &BlockId<B>) -> Result<Option<Vec<u8>>, sc_consensus_pow::Error<B>> {
 		let policy = self.client.runtime_api().policy(parent)

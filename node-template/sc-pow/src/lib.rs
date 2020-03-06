@@ -128,7 +128,7 @@ pub struct PowAux<Difficulty> {
 	pub difficulty: Difficulty,
 	/// Total difficulty up to current block.
 	pub total_difficulty: Difficulty,
-	pub policy: Vec<u8>,
+	pub policy: Option<Vec<u8>>,
 	pub steps: Option<u64>
 }
 
@@ -209,7 +209,7 @@ impl<B: BlockT, C, S, Algorithm> PowVerifier<B, C, S, Algorithm> {
 		&self,
 		mut header: B::Header,
 		parent_block_id: BlockId<B>,
-	) -> Result<(B::Header,Algorithm::Difficulty,Vec<u8>, DigestItem<B::Hash>), Error<B>> where
+	) -> Result<(B::Header,Algorithm::Difficulty,Option<Vec<u8>>, DigestItem<B::Hash>), Error<B>> where
 		Algorithm: PowAlgorithm<B>,
 	{
 		let hash = header.hash();
@@ -238,7 +238,7 @@ impl<B: BlockT, C, S, Algorithm> PowVerifier<B, C, S, Algorithm> {
 			return Err(Error::InvalidSeal);
 		}
 
-		Ok((header, difficulty,policy.unwrap(), seal))
+		Ok((header, difficulty,policy, seal))
 	}
 	fn check_inherents(
 		&self,
@@ -541,7 +541,7 @@ fn mine_loop<B: BlockT, C, Algorithm, E, SO, S, CAW>(
 					&BlockId::Hash(best_hash),
 					&header.hash(),
 					aux.difficulty,
-					Some(aux.policy.clone()),
+					aux.policy.clone(),
 					rounds,
 				)?;
 				if let Some(seal) = seal {
@@ -556,7 +556,7 @@ fn mine_loop<B: BlockT, C, Algorithm, E, SO, S, CAW>(
 		};
 		aux.difficulty = difficulty;
 		aux.total_difficulty.increment(difficulty);
-		aux.policy = policy;
+		aux.policy = Some(policy);
 		let hash = {
 			let mut header = header.clone();
 			header.digest_mut().push(DigestItem::Seal(POW_ENGINE_ID, seal.clone()));
