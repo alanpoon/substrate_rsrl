@@ -128,7 +128,7 @@ pub struct PowAux<Difficulty> {
 	pub difficulty: Difficulty,
 	/// Total difficulty up to current block.
 	pub total_difficulty: Difficulty,
-	pub policy: Option<Vec<u8>>
+	pub policy: Vec<u8>
 }
 
 impl<Difficulty> PowAux<Difficulty> where
@@ -148,7 +148,7 @@ impl<Difficulty> PowAux<Difficulty> where
 /// Algorithm used for proof of work.
 pub trait PowAlgorithm<B: BlockT> {
 	/// Difficulty for the algorithm.
-	type Difficulty: TotalDifficulty + Default + Encode + Decode + Ord + Clone + Copy;
+	type Difficulty: TotalDifficulty + Default + Encode + Decode + Ord + Clone + Copy + std::fmt::Debug;
 	/// Get the next block's difficulty.
 	///
 	/// This function will be called twice during the import process, so the implementation
@@ -179,6 +179,7 @@ pub trait PowAlgorithm<B: BlockT> {
 		parent: &BlockId<B>,
 		pre_hash: &B::Hash,
 		difficulty: Self::Difficulty,
+		policy: Vec<u8>,
 		round: u32,
 	) -> Result<Option<Seal>, Error<B>>;
 }
@@ -206,7 +207,7 @@ impl<B: BlockT, C, S, Algorithm> PowVerifier<B, C, S, Algorithm> {
 		&self,
 		mut header: B::Header,
 		parent_block_id: BlockId<B>,
-	) -> Result<(B::Header,Algorithm::Difficulty,Option<Vec<u8>>, DigestItem<B::Hash>), Error<B>> where
+	) -> Result<(B::Header,Algorithm::Difficulty,Vec<u8>, DigestItem<B::Hash>), Error<B>> where
 		Algorithm: PowAlgorithm<B>,
 	{
 		let hash = header.hash();
@@ -224,7 +225,7 @@ impl<B: BlockT, C, S, Algorithm> PowVerifier<B, C, S, Algorithm> {
 
 		let pre_hash = header.hash();
 		let difficulty = self.algorithm.difficulty(&parent_block_id)?;
-		let policy = self.algorithm.policy(&parent_block_id)?;
+		let policy = self.algorithm.policy(&parent_block_id).unwrap().unwrap_or(vec![]);
 		if !self.algorithm.verify(
 			&parent_block_id,
 			&pre_hash,
@@ -470,7 +471,7 @@ fn mine_loop<B: BlockT, C, Algorithm, E, SO, S, CAW>(
 ) -> Result<(), Error<B>> where
 	C: HeaderBackend<B> + AuxStore + ProvideRuntimeApi<B>,
 	Algorithm: PowAlgorithm<B>,
-	Algorithm::Difficulty: 'static,
+	Algorithm::Difficulty: 'static + std::fmt::Debug,
 	E: Environment<B>,
 	E::Proposer: Proposer<B, Transaction = sp_api::TransactionFor<C, B>>,
 	E::Error: std::fmt::Debug,
@@ -513,7 +514,7 @@ fn mine_loop<B: BlockT, C, Algorithm, E, SO, S, CAW>(
 			continue 'outer
 		}
 		let mut aux = PowAux::read(client, &best_hash)?;
-		println!("{:}",format!("best_header {:?}",best_header));
+		
 		let mut proposer = futures::executor::block_on(env.init(&best_header))
 			.map_err(|e| Error::Environment(format!("{:?}", e)))?;
 
@@ -527,30 +528,22 @@ fn mine_loop<B: BlockT, C, Algorithm, E, SO, S, CAW>(
 			inherent_data,
 			inherent_digest,
 			build_time.clone(),
-			RecordProof::Yes,
+			RecordProof::No,
 		)).map_err(|e| Error::BlockProposingError(format!("proposal {:?}", e)))?;
 
 		let (header, body) = proposal.block.deconstruct();
 		let (difficulty, policy, seal) = {
-			let difficulty = algorithm.difficulty(
-				&BlockId::Hash(best_hash),
-			)?;
-			let policy = algorithm.policy(
-				&BlockId::Hash(best_hash),
-			)?;
 			loop {
-				      
 				let seal = algorithm.mine(
 					&BlockId::Hash(best_hash),
 					&header.hash(),
-					difficulty,
+					aux.difficulty,
+					aux.policy.clone(),
 					round,
 				)?;
 				if let Some(seal) = seal {
 					let s = Sealer::decode(&mut &seal[..]).unwrap();
-					break (difficulty,s.policy, seal)
-				}else{
-					println!("{:?}",format!("no seal "));
+					break (aux.difficulty,s.policy, seal)
 				}
 
 				if best_hash != client.info().best_hash {
@@ -560,8 +553,7 @@ fn mine_loop<B: BlockT, C, Algorithm, E, SO, S, CAW>(
 		};
 		aux.difficulty = difficulty;
 		aux.total_difficulty.increment(difficulty);
-		println!("{:?}",format!("policy {:?}",policy));
-		aux.policy = Some(policy);
+		aux.policy = policy;
 		let hash = {
 			let mut header = header.clone();
 			header.digest_mut().push(DigestItem::Seal(POW_ENGINE_ID, seal.clone()));
@@ -572,12 +564,15 @@ fn mine_loop<B: BlockT, C, Algorithm, E, SO, S, CAW>(
 		if best_aux.total_difficulty > aux.total_difficulty {
 			continue 'outer
 		}
+		
 		let mut import_block = BlockImportParams::new(BlockOrigin::Own, header);
 		import_block.fork_choice = Some(ForkChoiceStrategy::Custom(true));
 		import_block.post_digests= vec![DigestItem::Seal(POW_ENGINE_ID, seal)];
 		import_block.finalized = false;
 		import_block.justification = None;
+		import_block.storage_changes = Some(proposal.storage_changes); //special
 		import_block.auxiliary= vec![(key, Some(aux.encode()))];
+		println!("added to aux!!");
 		block_import.import_block(import_block, HashMap::default())
 			.map_err(|e| Error::BlockBuiltError(best_hash, e))?;
 	}

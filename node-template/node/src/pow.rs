@@ -34,16 +34,6 @@ use rsrl::{
 	SerialExperiment,
 };
 
-
-fn is_valid_hash(hash: &H256, difficulty: Difficulty) -> bool {
-	let num_hash = U256::from(&hash[..]);
-	let (_, overflowed) = num_hash.overflowing_mul(difficulty);
-
-	!overflowed
-}
-
-
-
 #[derive(Clone, PartialEq, Eq, Encode, Decode, Debug)]
 pub struct Calculation {
 	pub difficulty: Difficulty,
@@ -169,10 +159,6 @@ C::Api: DifficultyApi<B, Difficulty> + AlgorithmApi<B>, {
 			Err(_) => return Ok(false),
 		};
 
-		if !is_valid_hash(&seal.work, difficulty) {
-			return Ok(false)
-		}
-
 		let compute = Compute {
 			difficulty,
 			pre_hash: *pre_hash,
@@ -191,6 +177,7 @@ C::Api: DifficultyApi<B, Difficulty> + AlgorithmApi<B>, {
 		parent: &BlockId<B>,
 		pre_hash: &H256,
 		difficulty: Difficulty,
+		policy: Vec<u8>,
 		round: u32,
 	) -> Result<Option<RawSeal>, Error<B>> {
 		let mut rng = SmallRng::from_rng(&mut thread_rng())
@@ -206,17 +193,9 @@ C::Api: DifficultyApi<B, Difficulty> + AlgorithmApi<B>, {
 				pre_hash: *pre_hash,
 				nonce,
 			};
-
+			
 			let seal = compute.compute();
-			let m:Vec<u8> =vec![2];
-			let k = self.client.runtime_api().policy(parent);
-			println!("stored {:?} valid_hash{:?}",k,is_valid_hash(&seal.work, difficulty));
-			self.client.runtime_api().set_policy(parent,m);
-			let k = self.client.runtime_api().policy(parent);
-			println!("after {:?}",k);
-			//if is_valid_hash(&seal.work, difficulty) {
-				return Ok(Some(seal.encode()))
-			//}
+			return Ok(Some(seal.encode()))
 
 		}
 
